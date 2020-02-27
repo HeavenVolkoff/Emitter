@@ -1,9 +1,19 @@
 # Project
+# Internal
+import typing as T
+
 from .._types import ListenersMapping
 from .new_listener_mapping import new_listener_mapping
 
+# Generic types
+K = T.TypeVar("K")
 
-def retrieve_listeners_from_namespace(namespace: object) -> ListenersMapping:
+_NOT_FOUND: K = object()  # type: ignore
+
+
+def retrieve_listeners_from_namespace(
+    namespace: object, default: K = _NOT_FOUND
+) -> T.Union[K, ListenersMapping]:
     if namespace is None:
         raise ValueError("Namespace can't be None")
 
@@ -17,6 +27,9 @@ def retrieve_listeners_from_namespace(namespace: object) -> ListenersMapping:
 
     listeners: ListenersMapping = cache.get("__listeners__", None)
     if listeners is None:
+        if default is not _NOT_FOUND:
+            return default
+
         listeners = new_listener_mapping()
         cache["__listeners__"] = listeners
 
