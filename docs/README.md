@@ -277,7 +277,7 @@ class Metric:
     def __hash__(self):
         return hash(self.name)
 
-@emitter.on(Metric):
+@emitter.on(Metric)
 def register_metric(event: Metric):
     metrics.add(event)
 
@@ -285,7 +285,7 @@ def register_metric(event: Metric):
 class ErrorMetric(Metric):
     error: T.Type[Exception]
 
-@emitter.on(Metric):
+@emitter.on(Metric)
 def calculate_total_error(event: ErrorMetric):
     total_error[emitter.error] += 1
 
