@@ -300,6 +300,7 @@ from ._on import on
 from ._emit import emit
 from ._types import HandleMode
 from ._remove import remove
+from ._helpers import new_listener_mapping
 from ._retrieve import retrieve
 
 try:
@@ -318,5 +319,6 @@ __all__ = (
     "remove",
     "retrieve",
     "HandleMode",
+    "new_listener_mapping",
     "__version__",
 )
