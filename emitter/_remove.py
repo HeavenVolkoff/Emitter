@@ -16,7 +16,7 @@ def remove(
     event_type: Te.Literal[None],
     listener: Te.Literal[None],
     *,
-    scope: Te.Literal[None],
+    scope: Te.Literal[None] = None,
     namespace: T.Optional[object] = None,
 ) -> bool:
     ...
