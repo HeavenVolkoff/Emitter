@@ -232,6 +232,10 @@ async def emit(
 
     if namespace is not None:
         namespace_listeners = retrieve_listeners_from_namespace(namespace, default=None)
+
+        # Don't keep namespace reference for long
+        del namespace
+
         if namespace_listeners and await _emit_single(
             namespace_listeners, event_instance, normalized_scope
         ):
