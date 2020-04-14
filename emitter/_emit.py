@@ -226,25 +226,24 @@ async def emit(
 
     handled = HandleMode.NONE
     normalized_scope = tuple(scope.split(".")) if scope else EmptyScope
+    namespace_listeners = (
+        None if namespace is None else retrieve_listeners_from_namespace(namespace, default=None)
+    )
+
+    # Don't keep namespace reference for long
+    del namespace
 
     if await _emit_single(listeners, event_instance, normalized_scope):
         handled |= HandleMode.GLOBAL
 
-    if namespace is not None:
-        namespace_listeners = retrieve_listeners_from_namespace(namespace, default=None)
+    if namespace_listeners and await _emit_single(
+        namespace_listeners, event_instance, normalized_scope
+    ):
+        handled |= HandleMode.NAMESPACE
 
-        # Don't keep namespace reference for long
-        del namespace
-
-        if namespace_listeners and await _emit_single(
-            namespace_listeners, event_instance, normalized_scope
-        ):
-            handled |= HandleMode.NAMESPACE
-
-    if not handled:
-        if isinstance(event_instance, Exception):
-            # When event_instance is an exception, and it is not handled, raise it back to user
-            # context
-            raise event_instance
+    if not handled and isinstance(event_instance, Exception):
+        # When event_instance is an exception, and it is not handled, raise it back to user
+        # context
+        raise event_instance
 
     return handled
