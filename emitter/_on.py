@@ -17,20 +17,20 @@ K = T.TypeVar("K")
 @T.overload
 def on(
     event_type: T.Type[K],
-    listener: ListenerCb[K],
+    listener: Te.Literal[None] = None,
     *,
     once: bool = False,
     loop: T.Optional[AbstractEventLoop] = None,
     scope: str = "",
     namespace: T.Optional[object] = None,
-) -> ListenerCb[K]:
+) -> T.Callable[[ListenerCb[K]], ListenerCb[K]]:
     ...
 
 
 @T.overload
 def on(
     event_type: T.Type[K],
-    listener: Te.Literal[None] = None,
+    listener: ListenerCb[K],
     *,
     once: bool = False,
     loop: T.Optional[AbstractEventLoop] = None,
