@@ -17,6 +17,10 @@ def retrieve_listeners_from_namespace(
     if namespace is None:
         raise ValueError("Namespace can't be None")
 
+    listeners: T.Optional[ListenersMapping] = getattr(namespace, "__listeners__", None)
+    if listeners is not None:
+        return listeners
+
     try:
         cache = namespace.__dict__
     except AttributeError:  # not all objects have __dict__ (e.g. class defines slots)
@@ -25,7 +29,7 @@ def retrieve_listeners_from_namespace(
             f"Namespace type: {type(namespace).__qualname__!r}, don't expose '__dict__'"
         ) from None
 
-    listeners: ListenersMapping = cache.get("__listeners__", None)
+    listeners: T.Optional[ListenersMapping] = cache.get("__listeners__", None)
     if listeners is None:
         if default is not _NOT_FOUND:
             return default
