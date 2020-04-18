@@ -1,30 +1,24 @@
 # Internal
+import sys
 import typing as T
 from enum import Flag, auto, unique
+from platform import python_implementation
+from collections import OrderedDict, defaultdict
 
 # External
 import typing_extensions as Te
 
 K = T.TypeVar("K", contravariant=True)
 
-
-class ListenerCb(Te.Protocol[K]):
-    def __call__(self, __event_data: K) -> T.Optional[T.Awaitable[None]]:
-        ...
-
-
-@unique
-class HandleMode(Flag):
-    """Defines which kind of listener a `emitter.emit` call executed during an event emission"""
-
-    NONE = 0
-    """No listener was executed"""
-
-    GLOBAL = auto()
-    """Only listeners from the global namespace were executed"""
-
-    NAMESPACE = auto()
-    """Only listeners from a specified namespace were executed"""
+# Python 3.7+ dicts are ordered by default, and they are slightly faster than OrderedDicts
+BestDict = (
+    dict
+    if (
+        sys.version_info >= (3, 7)
+        or (sys.version_info >= (3, 6) and python_implementation() == "CPython")
+    )
+    else OrderedDict
+)
 
 
 @unique
@@ -33,8 +27,18 @@ class ListenerOpts(Flag):
     ONCE = auto()
 
 
-EmptyScope = tuple()  # type: ignore
+class ListenerCb(Te.Protocol[K]):
+    def __call__(self, __event_data: K) -> T.Optional[T.Awaitable[None]]:
+        ...
 
-ListenersMapping = T.MutableMapping[
-    type, T.MutableMapping[T.Tuple[str, ...], T.MutableMapping[ListenerCb[T.Any], ListenerOpts]],
-]
+
+class Listeners:
+    __slots__ = ("scope", "types")
+
+    def __init__(self) -> None:
+        self.scope: T.MutableMapping[
+            T.Tuple[str, ...], T.MutableMapping[ListenerCb[T.Any], ListenerOpts]
+        ] = defaultdict(BestDict)
+        self.types: T.MutableMapping[
+            type, T.MutableMapping[ListenerCb[T.Any], ListenerOpts]
+        ] = defaultdict(BestDict)

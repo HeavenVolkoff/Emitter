@@ -158,6 +158,8 @@ async def write_user(event: UserRegisteredEvent) -> None:
 
 ## Scopes
 
+TODO: Rewrite this part, it is fully wrong
+
 Scope is a feature that allow limiting the execution of listeners to specific instances of an event
 emission.
 
@@ -300,7 +302,7 @@ Functions
 ---------
 
     
-`emit(event_instance: object, *, scope: str = '', namespace: Union[object, NoneType] = None) -> emitter._types.HandleMode`
+`emit(event_instance: object, namespace: object, *, scope: str = '') -> Coroutine[NoneType, NoneType, bool]`
 :   Emit an event, and execute its listeners.
     
     Arguments:
@@ -321,19 +323,18 @@ Functions
         If no listener handled this event the return value is 0.
 
     
-`on(event_type: Type[~K], listener: Union[emitter._types.ListenerCb[~K], NoneType] = None, *, once: bool = False, loop: Union[asyncio.events.AbstractEventLoop, NoneType] = None, scope: str = '', namespace: Union[object, NoneType] = None) -> Union[emitter._types.ListenerCb[~K], Callable[[emitter._types.ListenerCb[~K]], emitter._types.ListenerCb[~K]]]`
+`on(event: Union[str, Type[~K]], namespace: object, listener: Union[emitter._types.ListenerCb[~K], NoneType] = None, *, once: bool = False, loop: Union[asyncio.events.AbstractEventLoop, NoneType] = None) -> Union[emitter._types.ListenerCb[~K], Callable[[emitter._types.ListenerCb[~K]], emitter._types.ListenerCb[~K]]]`
 :   Add a listener to event type.
     
     Arguments:
-        event_type: Event type to attach the listener to.
+        event: Event type to attach the listener to.
+        namespace: Specify which listeners namespace to attach the given event listener.
+                   (Default: Global namespace)
         listener: Callable to be executed when there is an emission of the given event type.
         once: Define whether the given listener is to be removed after it's first execution.
         loop: Specify a loop to bound to the given listener and ensure it is always executed in the
               correct context. (Default: Current running loop for coroutines functions, None for
               any other callable)
-        scope: Define scope for limiting this listener execution.
-        namespace: Specify which listeners namespace to attach the given event listener.
-                   (Default: Global namespace)
     
     Raises:
         TypeError: Failed to bound loop to listener.
@@ -344,7 +345,7 @@ Functions
         If listener isn't provided, this method returns a function that takes a Callable as a         single argument. As such it can be used as a decorator. In both the decorated and         undecorated forms this function returns the given event listener.
 
     
-`remove(event_type: Union[Type[~K], NoneType], listener: Union[emitter._types.ListenerCb[~K], NoneType], *, scope: Union[str, NoneType] = None, namespace: Union[object, NoneType] = None) -> bool`
+`remove(event: Union[str, NoneType, Type[~K]], namespace: object, listener: Union[emitter._types.ListenerCb[~K], NoneType] = None) -> bool`
 :   Remove listeners, limited by scope, from given event type.
     
     No event_type, which also assumes no scope and listener, results in the removal of all
@@ -363,21 +364,19 @@ Functions
         ValueError: event_type is None, but scope or listener are not.
     
     Arguments:
+        event: Define from which event types the listeners will be removed.
         listener: Define the listener to be removed.
-        event_type: Define from which event types the listeners will be removed.
-        scope: Define scope to limit listener removal.
         namespace: Define from which namespace to remove the listener
     
     Returns:
         Whether any listener removal occurred.
 
     
-`retrieve(event_type: Type[~K], *, scope: Union[str, NoneType] = None, namespace: Union[object, NoneType] = None) -> Sequence[emitter._types.ListenerCb[~K]]`
+`retrieve(event: Union[str, Type[~K]], namespace: object) -> Sequence[emitter._types.ListenerCb[~K]]`
 :   Retrieve all listeners, limited by scope, registered to the given event type.
     
     Arguments:
-        event_type: Define from which event types the listeners will be retrieve.
-        scope: Define scope to limit listeners retrieval.
+        event: Define from which event types the listeners will be retrieve.
         namespace: Define from which namespace to retrieve the listeners
     
     Returns:
@@ -386,21 +385,13 @@ Functions
 Classes
 -------
 
-`HandleMode(value, names=None, *, module=None, qualname=None, type=None, start=1)`
-:   Defines which kind of listener a `emitter.emit` call executed during an event emission
+`Listeners()`
+:   
 
-    ### Ancestors (in MRO)
+    ### Instance variables
 
-    * enum.Flag
-    * enum.Enum
+    `scope`
+    :   Return an attribute of instance, which is of type owner.
 
-    ### Class variables
-
-    `GLOBAL`
-    :   Only listeners from the global namespace were executed
-
-    `NAMESPACE`
-    :   Only listeners from a specified namespace were executed
-
-    `NONE`
-    :   No listener was executed
+    `types`
+    :   Return an attribute of instance, which is of type owner.

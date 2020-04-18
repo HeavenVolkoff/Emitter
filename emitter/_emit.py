@@ -3,7 +3,7 @@ import typing as T
 from asyncio import Future, CancelledError, AbstractEventLoop, ensure_future
 
 # Project
-from ._types import EmptyScope, HandleMode, ListenerCb, ListenerOpts, ListenersMapping
+from ._types import Listeners, ListenerCb, ListenerOpts
 from .errors import ListenerEventLoopError, ListenerStoppedEventLoopError
 from ._helpers import (
     get_running_loop,
@@ -104,62 +104,62 @@ def _exec_listener_thread_safe(listener: ListenerCb[K], event_instance: K) -> "F
 
 
 async def _exec_listeners(
-    listeners: T.Mapping[T.Tuple[str, ...], T.MutableMapping[ListenerCb[K], ListenerOpts]],
-    event_instance: K,
-    scope: T.Tuple[str, ...],
+    listeners: T.Sequence[T.Tuple[ListenerCb[K], ListenerOpts]], event_instance: K,
 ) -> bool:
     listener: T.Optional[ListenerCb[K]] = None
-    # Range from -1 to include empty scopes in the loop
-    for step in range(-1, len(scope)):
-        step += 1  # Fix scope index
-        scope_listeners = listeners[scope[:step]]
-        # .items() returns a dynamic view, make it static by transforming into a tuple.
-        # This is necessary to allow listeners to remove events without interfering with any
-        # current running event emission.
-        for listener, opts in tuple(scope_listeners.items()):
-            # Remove listener from the queue if it was set to only exec once.
-            # There is a possibility that another listener removed this already, this is an
-            # expected behaviour.
-            if opts & ListenerOpts.ONCE and listener in scope_listeners:
-                del scope_listeners[listener]
+    for listener, opts in listeners:
+        future: T.Optional["Future[None]"] = None
+        try:
+            await _exec_listener_thread_safe(listener, event_instance)
+        except CancelledError:
+            raise
+        except Exception as exc:
+            # Second tier exception aren't treatable
+            if not isinstance(event_instance, Exception):
+                try:
+                    # Emit an event to attempt treating the exception
+                    await emit(exc, namespace=listener)
+                except CancelledError:
+                    raise
+                except Exception as inner_exc:
+                    if inner_exc is not exc:
+                        exc.__context__ = inner_exc
+                else:
+                    continue
 
-            future: T.Optional["Future[None]"] = None
-            try:
-                await _exec_listener_thread_safe(listener, event_instance)
-            except CancelledError:
-                raise
-            except Exception as exc:
-                # Second tier exception aren't treatable
-                if not isinstance(event_instance, Exception):
-                    try:
-                        # Emit an event to attempt treating the exception
-                        await emit(exc, namespace=listener)
-                    except CancelledError:
-                        raise
-                    except Exception as inner_exc:
-                        if inner_exc is not exc:
-                            exc.__context__ = inner_exc
-                    else:
-                        continue
-
-                # Warn about unhandled exceptions
-                get_running_loop().call_exception_handler(
-                    {
-                        "future": future,
-                        "message": "Unhandled exception during event emission",
-                        "exception": exc,
-                    }
-                )
+            # Warn about unhandled exceptions
+            get_running_loop().call_exception_handler(
+                {
+                    "future": future,
+                    "message": "Unhandled exception during event emission",
+                    "exception": exc,
+                }
+            )
 
     # Whether the loop above reassigned the listener variable determines if a listener executed
     # or not
-    return listener is not None
+    if listener is not None:
+        return True
+    elif isinstance(event_instance, Exception):
+        # When event_instance is an exception, and it is not handled, raise it back to user
+        # context
+        raise event_instance
+
+    return False
 
 
-async def _emit_single(
-    listeners: ListenersMapping, event_instance: K, scope: T.Tuple[str, ...] = EmptyScope
-) -> bool:
-    handled = False
+def _clear_once(
+    filtered_listeners: T.Sequence[T.Tuple[ListenerCb[T.Any], ListenerOpts]],
+    listeners: T.MutableMapping[ListenerCb[T.Any], ListenerOpts],
+) -> None:
+    for listener, listener_opts in filtered_listeners:
+        if listener_opts & ListenerOpts.ONCE:
+            del listeners[listener]
+
+
+def _retrieve_listeners(
+    listeners: Listeners, event_instance: K, scope: T.Optional[T.Tuple[str, ...]]
+) -> T.Sequence[T.Tuple[ListenerCb[K], ListenerOpts]]:
     event_type = type(event_instance)
 
     if isinstance(event_instance, BaseException) and not isinstance(event_instance, Exception):
@@ -176,32 +176,34 @@ async def _emit_single(
         # Object is too generic, it would cause unexpected behaviour.
         raise ValueError("Event type can't be object, must be a subclass of it")
 
-    # Event instance must be an instance of event type
-    assert isinstance(event_instance, event_type)
-
-    # .mro() returns a list consisting of [current_type, ..., most_generic_supertype].
-    # As such, remove the current type, as it is handled below, and reverse the list to fire
-    # this event from the most generic to the most specific supertype.
+    functions: T.List[T.Tuple[ListenerCb[K], ListenerOpts]] = []
     for event_supertype in reversed(event_type.mro()[1:]):
-        # Short circuit event types that don't have any listener attached.
-        if listeners[event_supertype] and listeners[event_supertype][EmptyScope]:
-            # Fire this event for it's super types
-            handled = (
-                await _exec_listeners(listeners[event_supertype], event_instance, EmptyScope)
-                or handled
-            )
+        if event_instance is object or event_instance is BaseException:
+            continue
 
-    event_listeners = listeners[event_type]
-    if event_listeners:
-        # Fire this event for its own type
-        handled = await _exec_listeners(event_listeners, event_instance, scope) or handled
+        mro_listeners = listeners.types[event_supertype]
+        filtered_mao_listeners = tuple(mro_listeners.items())
+        _clear_once(filtered_mao_listeners, mro_listeners)
+        functions += filtered_mao_listeners
 
-    return handled
+    type_listeners = listeners.types[event_type]
+    filtered_type_listeners = tuple(type_listeners.items())
+    _clear_once(filtered_type_listeners, type_listeners)
+    functions += filtered_type_listeners
+
+    if scope:
+        for step in range(-1, len(scope)):
+            scoped_listeners = listeners.scope[scope[: (step + 1)]]
+            filtered_scoped_listeners = tuple(scoped_listeners.items())
+            _clear_once(filtered_scoped_listeners, scoped_listeners)
+            functions += filtered_scoped_listeners
+
+    return tuple(functions)
 
 
-async def emit(
-    event_instance: object, *, scope: str = "", namespace: T.Optional[object] = None
-) -> HandleMode:
+def emit(
+    event_instance: object, namespace: object, *, scope: str = ""
+) -> T.Coroutine[None, None, bool]:
     """Emit an event, and execute its listeners.
 
     Arguments:
@@ -222,28 +224,10 @@ async def emit(
         If no listener handled this event the return value is 0.
 
     """
-    from ._global import listeners
-
-    handled = HandleMode.NONE
-    normalized_scope = tuple(scope.split(".")) if scope else EmptyScope
-    namespace_listeners = (
-        None if namespace is None else retrieve_listeners_from_namespace(namespace, default=None)
+    namespace_listeners = _retrieve_listeners(
+        retrieve_listeners_from_namespace(namespace),
+        event_instance,
+        tuple(scope.split(".")) if scope else None,
     )
 
-    # Don't keep namespace reference for long
-    del namespace
-
-    if await _emit_single(listeners, event_instance, normalized_scope):
-        handled |= HandleMode.GLOBAL
-
-    if namespace_listeners and await _emit_single(
-        namespace_listeners, event_instance, normalized_scope
-    ):
-        handled |= HandleMode.NAMESPACE
-
-    if not handled and isinstance(event_instance, Exception):
-        # When event_instance is an exception, and it is not handled, raise it back to user
-        # context
-        raise event_instance
-
-    return handled
+    return _exec_listeners(namespace_listeners, event_instance)

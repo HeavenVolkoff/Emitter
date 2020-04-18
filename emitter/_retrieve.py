@@ -3,19 +3,16 @@ import typing as T
 
 # Project
 from ._types import ListenerCb
-from ._helpers import limit_scope, retrieve_listeners_from_namespace
+from ._helpers import retrieve_listeners_from_namespace
 
 K = T.TypeVar("K")
 
 
-def retrieve(
-    event_type: T.Type[K], *, scope: T.Optional[str] = None, namespace: T.Optional[object] = None,
-) -> T.Sequence[ListenerCb[K]]:
+def retrieve(event: T.Union[str, T.Type[K]], namespace: object) -> T.Sequence[ListenerCb[K]]:
     """Retrieve all listeners, limited by scope, registered to the given event type.
 
     Arguments:
-        event_type: Define from which event types the listeners will be retrieve.
-        scope: Define scope to limit listeners retrieval.
+        event: Define from which event types the listeners will be retrieve.
         namespace: Define from which namespace to retrieve the listeners
 
     Returns:
@@ -23,19 +20,23 @@ def retrieve(
         scope
 
     """
-    if namespace is not None:
-        listeners = retrieve_listeners_from_namespace(namespace)
-    else:
-        from ._global import listeners  # type: ignore
+    listeners = retrieve_listeners_from_namespace(namespace)
 
-    return tuple(
-        listener
-        for _, listener in limit_scope(
-            scope,
-            (
-                (listeners_scope, listener)
-                for listeners_scope, listeners in listeners[event_type].items()
-                for listener in listeners
-            ),
+    if isinstance(event, str):
+        if event == "":
+            raise ValueError("Event scope must be a valid string")
+
+        scope = tuple(event.split("."))
+        return tuple(
+            listener
+            for step in range(-1, len(scope))
+            for listener, _ in listeners.scope[scope[: (step + 1)]].items()
         )
-    )
+    else:
+        if issubclass(event, BaseException) and not issubclass(event, Exception):
+            raise ValueError("Event type can't be a BaseException")
+
+        if not isinstance(event, type) or issubclass(event, type):
+            raise ValueError("Event type must be an instance of type")
+
+        return tuple(listener for listener, _ in listeners.types[event].items())

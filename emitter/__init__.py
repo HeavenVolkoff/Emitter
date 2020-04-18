@@ -156,6 +156,8 @@ async def write_user(event: UserRegisteredEvent) -> None:
 
 ## Scopes
 
+TODO: Rewrite this part, it is fully wrong
+
 Scope is a feature that allow limiting the execution of listeners to specific instances of an event
 emission.
 
@@ -298,9 +300,8 @@ from importlib_metadata import version
 # Project
 from ._on import on
 from ._emit import emit
-from ._types import HandleMode, ListenersMapping
+from ._types import Listeners
 from ._remove import remove
-from ._helpers import new_listener_mapping
 from ._retrieve import retrieve
 
 try:
@@ -318,8 +319,6 @@ __all__ = (
     "emit",
     "remove",
     "retrieve",
-    "HandleMode",
+    "Listeners",
     "__version__",
-    "ListenersMapping",
-    "new_listener_mapping",
 )

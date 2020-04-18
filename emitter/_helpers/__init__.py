@@ -1,6 +1,4 @@
 # Project
-from .limit_scope import limit_scope
 from .get_running_loop import get_running_loop
-from .new_listener_mapping import new_listener_mapping
 from .retrieve_loop_from_listener import retrieve_loop_from_listener
 from .retrieve_listeners_from_namespace import retrieve_listeners_from_namespace

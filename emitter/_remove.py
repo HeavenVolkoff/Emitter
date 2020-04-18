@@ -6,39 +6,27 @@ import typing_extensions as Te
 
 # Project
 from ._types import ListenerCb
-from ._helpers import limit_scope, retrieve_listeners_from_namespace
+from ._helpers import retrieve_listeners_from_namespace
 
 K = T.TypeVar("K")
 
 
 @T.overload
-def remove(
-    event_type: Te.Literal[None],
-    listener: Te.Literal[None],
-    *,
-    scope: Te.Literal[None] = None,
-    namespace: T.Optional[object] = None,
-) -> bool:
+def remove(event: Te.Literal[None], namespace: object, listener: Te.Literal[None] = None) -> bool:
     ...
 
 
 @T.overload
 def remove(
-    event_type: T.Type[K],
-    listener: T.Optional[ListenerCb[K]],
-    *,
-    scope: T.Optional[str] = None,
-    namespace: T.Optional[object] = None,
+    event: T.Union[str, T.Type[K]], namespace: object, listener: T.Optional[ListenerCb[K]]
 ) -> bool:
     ...
 
 
 def remove(
-    event_type: T.Optional[T.Type[K]],
-    listener: T.Optional[ListenerCb[K]],
-    *,
-    scope: T.Optional[str] = None,
-    namespace: T.Optional[object] = None,
+    event: T.Union[str, None, T.Type[K]],
+    namespace: object,
+    listener: T.Optional[ListenerCb[K]] = None,
 ) -> bool:
     """Remove listeners, limited by scope, from given event type.
 
@@ -58,52 +46,52 @@ def remove(
         ValueError: event_type is None, but scope or listener are not.
 
     Arguments:
+        event: Define from which event types the listeners will be removed.
         listener: Define the listener to be removed.
-        event_type: Define from which event types the listeners will be removed.
-        scope: Define scope to limit listener removal.
         namespace: Define from which namespace to remove the listener
 
     Returns:
         Whether any listener removal occurred.
 
     """
-    if namespace is not None:
-        listeners = retrieve_listeners_from_namespace(namespace)
-    else:
-        from ._global import listeners  # type: ignore
+    listeners = retrieve_listeners_from_namespace(namespace)
 
-    if not listeners:
-        return True
-
-    if event_type is None:
-        if listener is None and scope is None:
+    if event is None:
+        if listener is None:
             # Clear all listeners
-            listeners.clear()
-            return True
+            removed = bool(listeners.scope) or bool(listeners.types)
+            listeners.scope.clear()
+            listeners.types.clear()
+            return removed
         else:
-            raise ValueError("Listener or Scope can't be defined without an Event type")
+            raise ValueError("Listener can't be defined without an Event type or scope")
 
-    removal = False
-    if listener is not None or scope is not None:
-        for listeners_scope, scope_listeners in limit_scope(scope, listeners[event_type].items()):
-            if listener:
-                # Clear specific listener from scope
-                removal = bool(scope_listeners.pop(listener, None)) or removal
-                if scope_listeners:
-                    continue
-                # Clear scope if it became empty
+    removed = False
 
-            # Clear all scopes listeners
-            del listeners[event_type][listeners_scope]
+    if isinstance(event, str):
+        if event == "":
+            raise ValueError("Event scope must be a valid string")
 
-        if listeners[event_type]:
-            return removal
-        # Clear event type if it became empty
-    else:
-        # listener and scope are None
-        removal = True
+        scope = tuple(event.split("."))
+        for listener_scope, scoped_listeners in tuple(listeners.scope.items()):
+            if scope > listener_scope:
+                continue
 
-    # Clear all event type listeners
-    del listeners[event_type]
+            if listener is None:
+                removed = removed or bool(scoped_listeners)
+                listeners.scope[listener_scope].clear()
+            elif listener in scoped_listeners:
+                removed = True
+                del scoped_listeners[listener]
 
-    return removal
+        return removed
+
+    if event in listeners.types:
+        if listener is None:
+            removed = bool(listeners.types[event])
+            listeners.types[event].clear()
+        elif listener in listeners.types[event]:
+            removed = True
+            del listeners.types[event][listener]
+
+    return removed

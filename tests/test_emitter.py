@@ -4,12 +4,13 @@ import asyncio
 import unittest
 from typing import NamedTuple
 from asyncio import Future, CancelledError
-from unittest.mock import Mock
+from unittest.mock import Mock, call
+
+# External
+import asynctest
 
 # External
 import emitter
-import asynctest
-from emitter import HandleMode
 from emitter.errors import ListenerEventLoopError, ListenerStoppedEventLoopError
 
 # Generic types
@@ -34,37 +35,59 @@ class Event(NamedTuple):
     data: str
 
 
+class Global:
+    pass
+
+
 # noinspection PyMethodMayBeStatic
 @asynctest.strict
 class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
     def tearDown(self) -> None:
-        emitter.remove(None, None)
+        emitter.remove(None, Global)
 
     async def test_emit(self) -> None:
-        self.assertFalse(await emitter.emit(Event("Wowow")))
+        self.assertFalse(await emitter.emit(Event("Wowow"), Global))
 
     async def test_listener_simple(self) -> None:
         listener = Mock()
 
-        emitter.on(Event, listener)
+        emitter.on(Event, Global, listener)
 
         e = Event("Wowow")
-        self.assertTrue((await emitter.emit(e)) & HandleMode.GLOBAL)
+        self.assertTrue(await emitter.emit(e, Global))
 
         listener.assert_called_once_with(e)
 
     async def test_listener_decorator(self) -> None:
         mock = Mock()
 
-        @emitter.on(Event)
+        @emitter.on(Event, Global)
         def listener(event: Event) -> None:
             self.assertEqual("Wowow", event.data)
             mock(event)
 
         e = Event("Wowow")
-        self.assertTrue((await emitter.emit(e)) & HandleMode.GLOBAL)
+        self.assertTrue(await emitter.emit(e, Global))
 
         mock.assert_called_once_with(e)
+
+    async def test_scoped_listener_decorator(self) -> None:
+        mock = Mock()
+
+        @emitter.on(Event, Global)
+        def listener(event: Event) -> None:
+            self.assertEqual("Wowow", event.data)
+            mock(event)
+
+        @emitter.on("test", Global)
+        def listener(event: Event) -> None:
+            self.assertEqual("Wowow", event.data)
+            mock(event)
+
+        e = Event("Wowow")
+        self.assertTrue(await emitter.emit(e, Global, scope="test"))
+
+        mock.assert_has_calls([call(e), call(e)])
 
     async def test_listener_callable_class(self) -> None:
         mock = Mock()
@@ -75,10 +98,10 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
                 this.assertEqual("Wowow", event.data)
                 mock(event)
 
-        emitter.on(Event, Listener())
+        emitter.on(Event, Global, Listener())
 
         e = Event("Wowow")
-        self.assertTrue((await emitter.emit(e)) & HandleMode.GLOBAL)
+        self.assertTrue(await emitter.emit(e, Global))
 
         mock.assert_called_once_with(e)
 
@@ -86,7 +109,7 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
         mock = Mock()
         future = self.loop.create_future()
 
-        @emitter.on(Event)
+        @emitter.on(Event, Global)
         async def listener(event: Event) -> None:
             await asyncio.sleep(0)
             self.assertEqual("Wowow", event.data)
@@ -94,7 +117,7 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
             future.set_result(event)
 
         e = Event("Wowow")
-        self.assertTrue((await emitter.emit(e)) & HandleMode.GLOBAL)
+        self.assertTrue(await emitter.emit(e, Global))
 
         self.assertIs(e, await future)
 
@@ -103,46 +126,15 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
     async def test_listener_awaitable(self) -> None:
         mock = MockAwaitable()
 
-        @emitter.on(Event)
+        @emitter.on(Event, Global)
         def listener(event: Event) -> T.Awaitable[None]:
             self.assertEqual("Wowow", event.data)
             return mock
 
         mock.set_result(None)
-        self.assertTrue((await emitter.emit(Event("Wowow"))) & HandleMode.GLOBAL)
+        self.assertTrue(await emitter.emit(Event("Wowow"), Global))
 
         self.assertEqual(1, mock.time_result_was_called)
-
-    async def test_listener_namespace(self) -> None:
-        class A:
-            pass
-
-        namespace = A()
-        listener = Mock()
-
-        emitter.on(Event, listener, namespace=namespace)
-
-        e = Event("Wowow")
-        self.assertTrue((await emitter.emit(e, namespace=namespace)) & HandleMode.NAMESPACE)
-
-        listener.assert_called_once_with(e)
-
-    async def test_listener_both(self) -> None:
-        class A:
-            pass
-
-        namespace = A()
-        listener = Mock()
-        global_listener = Mock()
-
-        emitter.on(Event, global_listener)
-        emitter.on(Event, listener, namespace=namespace)
-
-        e = Event("Wowow")
-        handled = await emitter.emit(e, namespace=namespace)
-
-        self.assertTrue(handled & HandleMode.NAMESPACE and handled & HandleMode.GLOBAL)
-        listener.assert_called_once_with(e)
 
     async def test_listener_coro_error(self) -> None:
         future_error = self.loop.create_future()
@@ -151,17 +143,17 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
         def handle_error(_, ctx) -> None:
             future_error.set_exception(ctx["exception"])
 
-        @emitter.on(Event)
+        @emitter.on(Event, Global)
         async def listener(_: T.Any) -> None:
             await asyncio.sleep(0)
             raise RuntimeError("Ooops...")
 
-        await emitter.emit(Event("Wowow"))
+        await emitter.emit(Event("Wowow"), Global)
 
         with self.assertRaisesRegex(RuntimeError, "Ooops..."):
             await future_error
 
-    async def test_listener_coro_handle_error_global(self) -> None:
+    async def test_listener_coro_handle_error(self) -> None:
         exc = RuntimeError("Ooops...")
         mock = Mock()
         future_error = self.loop.create_future()
@@ -170,38 +162,14 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
         def handle_error(_, ctx) -> None:
             future_error.set_exception(ctx["exception"])
 
-        emitter.on(RuntimeError, mock)
-
-        @emitter.on(Event)
+        @emitter.on(Event, Global)
         async def listener(_: T.Any) -> None:
             await asyncio.sleep(0)
             raise exc
 
-        await emitter.emit(Event("Wowow"))
+        emitter.on(RuntimeError, listener, mock)
 
-        # Allow the loop to cycle once
-        await asyncio.sleep(0)
-        self.assertFalse(future_error.done())
-
-        mock.assert_called_once_with(exc)
-
-    async def test_listener_coro_handle_error_namespace(self) -> None:
-        exc = RuntimeError("Ooops...")
-        mock = Mock()
-        future_error = self.loop.create_future()
-
-        @self.loop.set_exception_handler
-        def handle_error(_, ctx) -> None:
-            future_error.set_exception(ctx["exception"])
-
-        @emitter.on(Event)
-        async def listener(_: T.Any) -> None:
-            await asyncio.sleep(0)
-            raise exc
-
-        emitter.on(RuntimeError, mock, namespace=listener)
-
-        await emitter.emit(Event("Wowow"))
+        await emitter.emit(Event("Wowow"), Global)
 
         # Allow the loop to cycle once
         await asyncio.sleep(0)
@@ -212,16 +180,16 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
     @asynctest.fail_on(unused_loop=False)
     def test_invalid_types_not_callable(self) -> None:
         with self.assertRaises(ValueError):
-            emitter.on(str, "")
+            emitter.on(str, Global, "")
 
         with self.assertRaises(ValueError):
-            emitter.on(str, 1)
+            emitter.on(str, Global, 1)
 
         with self.assertRaises(ValueError):
-            emitter.on(str, [])
+            emitter.on(str, Global, [])
 
         with self.assertRaises(ValueError):
-            emitter.on(str, {})
+            emitter.on(str, Global, {})
 
     @asynctest.fail_on(unused_loop=False)
     def test_invalid_types_slotted_class_with_loop(self) -> None:
@@ -232,7 +200,7 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
                 return None
 
         with self.assertRaises(TypeError):
-            emitter.on(str, Listener, loop=self.loop)
+            emitter.on(str, Global, Listener, loop=self.loop)
 
     async def test_invalid_types_metaclass(self) -> None:
         mock = Mock()
@@ -241,10 +209,10 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
             pass
 
         with self.assertRaises(ValueError):
-            emitter.on(Meta, mock)
+            emitter.on(Meta, Global, mock)
 
         with self.assertRaises(ValueError):
-            await emitter.emit(Meta("", tuple(), {}))
+            await emitter.emit(Meta("", tuple(), {}), Global)
 
         mock.assert_not_called()
 
@@ -252,10 +220,10 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
         mock = Mock()
 
         with self.assertRaises(ValueError):
-            emitter.on(object, mock)
+            emitter.on(object, Global, mock)
 
         with self.assertRaises(ValueError):
-            await emitter.emit(object())
+            await emitter.emit(object(), Global)
 
         mock.assert_not_called()
 
@@ -263,10 +231,10 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
         mock = Mock()
 
         with self.assertRaises(ValueError):
-            emitter.on(BaseException, mock)
+            emitter.on(BaseException, Global, mock)
 
         with self.assertRaises(BaseException):
-            await emitter.emit(BaseException())
+            await emitter.emit(BaseException(), Global)
 
         mock.assert_not_called()
 
@@ -277,10 +245,10 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
             pass
 
         with self.assertRaises(ValueError):
-            emitter.on(Exp, mock)
+            emitter.on(Exp, Global, mock)
 
         with self.assertRaises(Exp):
-            await emitter.emit(Exp())
+            await emitter.emit(Exp(), Global)
 
         mock.assert_not_called()
 
@@ -292,16 +260,16 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
         def handle_error(_, ctx) -> None:
             future_error.set_exception(ctx["exception"])
 
-        @emitter.on(Event)
+        @emitter.on(Event, Global)
         def listener(_: T.Any) -> None:
             fut = self.loop.create_future()
             fut.cancel()
             return fut
 
-        emitter.on(Event, mock)
+        emitter.on(Event, Global, mock)
 
         e = Event("Wowow")
-        await emitter.emit(e)
+        await emitter.emit(e, Global)
 
         with self.assertRaises(CancelledError):
             await future_error
@@ -311,14 +279,14 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
     async def test_once(self) -> None:
         mock = Mock()
 
-        emitter.on(Event, mock, once=True)
+        emitter.on(Event, Global, mock, once=True)
 
         e = Event("0")
         await asyncio.gather(
-            emitter.emit(e),
-            emitter.emit(Event("1")),
-            emitter.emit(Event("2")),
-            emitter.emit(Event("3")),
+            emitter.emit(e, Global),
+            emitter.emit(Event("1"), Global),
+            emitter.emit(Event("2"), Global),
+            emitter.emit(Event("3"), Global),
         )
 
         mock.assert_called_once_with(e)
@@ -329,10 +297,10 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
 
         mock = Mock()
 
-        emitter.on(Event, mock)
+        emitter.on(Event, Global, mock)
 
         e = Event2("")
-        await emitter.emit(e)
+        await emitter.emit(e, Global)
 
         mock.assert_called_once_with(e)
 
@@ -343,11 +311,11 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
         mock = Mock()
         mock1 = Mock()
 
-        emitter.on(Event, mock)
-        emitter.on(Event2, mock1)
+        emitter.on(Event, Global, mock)
+        emitter.on(Event2, Global, mock1)
 
         e = Event2("")
-        await emitter.emit(e)
+        await emitter.emit(e, Global)
 
         mock.assert_called_once_with(e)
         mock1.assert_called_once_with(e)
@@ -360,11 +328,11 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
         def handle_error(_, ctx) -> None:
             future_error.set_exception(ctx["exception"])
 
-        @emitter.on(Event)
+        @emitter.on(Event, Global)
         def listener(_: T.Any) -> T.Awaitable[None]:
             return loop.create_future()
 
-        await emitter.emit(Event(""))
+        await emitter.emit(Event(""), Global)
 
         with self.assertRaises(ListenerEventLoopError):
             await future_error
@@ -379,11 +347,11 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
         def handle_error(_, ctx) -> None:
             future_error.set_exception(ctx["exception"])
 
-        @emitter.on(Event, loop=loop)
+        @emitter.on(Event, Global, loop=loop)
         async def listener(_: T.Any) -> None:
             return None
 
-        await emitter.emit(Event(""))
+        await emitter.emit(Event(""), Global)
 
         with self.assertRaises(ListenerStoppedEventLoopError):
             await future_error
