@@ -25,9 +25,9 @@ def retrieve_listeners_from_namespace(namespace: object) -> Listeners:
         try:
             setattr(namespace, "__listeners__", listeners)
         except AttributeError:  # not all objects are writable
-            raise TypeError(
-                "Failed to retrieve namespace's listeners. "
-                f"Namespace({type(namespace).__qualname__}) attributes aren't writable"
+            raise AttributeError(
+                "Failed to assign namespace's listeners. "
+                f"{type(namespace).__qualname__} attributes aren't writable"
             ) from None
 
     return listeners

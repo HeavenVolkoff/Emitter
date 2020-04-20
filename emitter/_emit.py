@@ -69,8 +69,9 @@ def _exec_listener(
                 result_future.set_result(result)
 
 
-def _exec_listener_thread_safe(listener: ListenerCb[K], event_instance: K) -> "Future[None]":
-    loop = get_running_loop()
+def _exec_listener_thread_safe(
+    loop: AbstractEventLoop, listener: ListenerCb[K], event_instance: K
+) -> "Future[None]":
     listener_loop = retrieve_loop_from_listener(listener) or loop
 
     if not listener_loop.is_running():
@@ -106,15 +107,15 @@ def _exec_listener_thread_safe(listener: ListenerCb[K], event_instance: K) -> "F
 async def _exec_listeners(
     listeners: T.Sequence[T.Tuple[ListenerCb[K], ListenerOpts]], event_instance: K,
 ) -> bool:
+    loop = get_running_loop()
     listener: T.Optional[ListenerCb[K]] = None
     for listener, opts in listeners:
-        future: T.Optional["Future[None]"] = None
         try:
-            await _exec_listener_thread_safe(listener, event_instance)
+            await _exec_listener_thread_safe(loop, listener, event_instance)
         except CancelledError:
             raise
         except Exception as exc:
-            # Second tier exception aren't treatable
+            # Second tier exception aren't treatable to avoid recursion
             if not isinstance(event_instance, Exception):
                 try:
                     # Emit an event to attempt treating the exception
@@ -128,16 +129,12 @@ async def _exec_listeners(
                     continue
 
             # Warn about unhandled exceptions
-            get_running_loop().call_exception_handler(
-                {
-                    "future": future,
-                    "message": "Unhandled exception during event emission",
-                    "exception": exc,
-                }
+            loop.call_exception_handler(
+                {"message": "Unhandled exception during event emission", "exception": exc}
             )
 
-    # Whether the loop above reassigned the listener variable determines if a listener executed
-    # or not
+    # Whether the previous iteration assigned the listener variable determines if a listener was
+    # executed or not
     if listener is not None:
         return True
     elif isinstance(event_instance, Exception):

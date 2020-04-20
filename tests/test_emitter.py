@@ -199,8 +199,8 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
             def __call__(self, event: Event) -> None:
                 return None
 
-        with self.assertRaises(TypeError):
-            emitter.on(str, Global, Listener, loop=self.loop)
+        with self.assertRaises(AttributeError):
+            emitter.on(str, Global, Listener(), loop=self.loop)
 
     async def test_invalid_types_metaclass(self) -> None:
         mock = Mock()
