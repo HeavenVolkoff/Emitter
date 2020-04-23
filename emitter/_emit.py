@@ -1,6 +1,9 @@
 # Internal
 import typing as T
-from asyncio import Future, CancelledError, AbstractEventLoop, ensure_future
+from asyncio import Task, Future, CancelledError, AbstractEventLoop, ensure_future
+
+# External
+import typing_extensions as Te
 
 # Project
 from ._types import Listeners, ListenerCb, ListenerOpts
@@ -198,15 +201,34 @@ def _retrieve_listeners(
     return tuple(functions)
 
 
+@T.overload
 def emit(
-    event_instance: object, namespace: object, *, scope: str = ""
+    event_instance: object, namespace: object, *, loop: AbstractEventLoop, scope: str = "",
+) -> T.Optional["Task[bool]"]:
+    ...
+
+
+@T.overload
+def emit(
+    event_instance: object, namespace: object, *, loop: Te.Literal[None] = None, scope: str = "",
 ) -> T.Coroutine[None, None, bool]:
+    ...
+
+
+def emit(
+    event_instance: object,
+    namespace: object,
+    *,
+    loop: T.Optional[AbstractEventLoop] = None,
+    scope: str = "",
+) -> T.Union[None, "Task[bool]", T.Coroutine[None, None, bool]]:
     """Emit an event, and execute its listeners.
 
     Arguments:
         event_instance: Event instance to be emitted.
-        scope: Define till which scopes this event will execute its listeners.
         namespace: Specify a listener namespace to emit this event.
+        loop: Define loop to run event emission
+        scope: Define till which scopes this event will execute its listeners.
 
     Raises:
         ValueError: event_instance is an instance of a builtin type, or it is a type instead of an
@@ -215,10 +237,7 @@ def emit(
         CancelledError: Raised whenever the loop (or something) cancels this coroutine.
 
     Returns:
-        Whether this event emission resulted in any listener execution.
-        The returned type is `emitter.HandleMode`. It provides information on which listener
-        bundled: global, namespace or both, that handled this event.
-        If no listener handled this event the return value is 0.
+        Coroutine or awaitable representing the event emission
 
     """
     namespace_listeners = _retrieve_listeners(
@@ -227,4 +246,12 @@ def emit(
         tuple(scope.split(".")) if scope else None,
     )
 
-    return _exec_listeners(namespace_listeners, event_instance)
+    coro = _exec_listeners(namespace_listeners, event_instance)
+
+    if loop is None:
+        return coro
+
+    if namespace:
+        return loop.create_task(coro)
+
+    return None

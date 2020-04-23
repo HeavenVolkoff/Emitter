@@ -100,7 +100,10 @@ def on(
 
     if loop is None and iscoroutinefunction(listener):
         # Automatically set loop for Coroutines to avoid problems with emission from another thread
-        loop = get_running_loop()
+        try:
+            loop = get_running_loop()
+        except RuntimeError:
+            loop = None
 
     # Bound listener to loop
     if retrieve_loop_from_listener(listener, loop) is not loop:
