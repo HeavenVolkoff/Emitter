@@ -58,6 +58,19 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
 
         listener.assert_called_once_with(e)
 
+    async def test_listener_context(self) -> None:
+        listener = Mock()
+
+        ctx = emitter.on(Event, Global, listener, context=True)
+        self.assertIsInstance(ctx, T.ContextManager)
+        with ctx:
+            e = Event("Wowow")
+            self.assertTrue(await emitter.emit(e, Global))
+
+            listener.assert_called_once_with(e)
+
+        self.assertFalse(emitter.remove(Event, Global, listener))
+
     async def test_listener_decorator(self) -> None:
         mock = Mock()
 
@@ -70,6 +83,23 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
         self.assertTrue(await emitter.emit(e, Global))
 
         mock.assert_called_once_with(e)
+
+    async def test_listener_decorator_fail_context(self) -> None:
+        mock = Mock()
+
+        with self.assertRaisesRegex(
+            ValueError, "Can't use context manager without a listener defined"
+        ):
+
+            @emitter.on(Event, Global, context=True)
+            def listener(event: Event) -> None:
+                self.assertEqual("Wowow", event.data)
+                mock(event)
+
+        e = Event("Wowow")
+        self.assertFalse(await emitter.emit(e, Global))
+
+        mock.assert_not_called()
 
     async def test_scoped_listener_decorator(self) -> None:
         mock = Mock()
@@ -282,14 +312,34 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
         emitter.on(Event, Global, mock, once=True)
 
         e = Event("0")
-        await asyncio.gather(
+        results = await asyncio.gather(
             emitter.emit(e, Global),
             emitter.emit(Event("1"), Global),
             emitter.emit(Event("2"), Global),
             emitter.emit(Event("3"), Global),
         )
 
+        self.assertListEqual([True, False, False, False], results)
+
         mock.assert_called_once_with(e)
+
+    async def test_once_fail_context(self) -> None:
+        mock = Mock()
+
+        with self.assertRaisesRegex(ValueError, "Can't use context manager with a once listener"):
+            emitter.on(Event, Global, mock, once=True, context=True)
+
+        e = Event("0")
+        results = await asyncio.gather(
+            emitter.emit(e, Global),
+            emitter.emit(Event("1"), Global),
+            emitter.emit(Event("2"), Global),
+            emitter.emit(Event("3"), Global),
+        )
+
+        self.assertListEqual([False, False, False, False], results)
+
+        mock.assert_not_called()
 
     async def test_superclass_listeners(self) -> None:
         class Event2(Event):

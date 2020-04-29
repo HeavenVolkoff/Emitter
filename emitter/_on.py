@@ -1,17 +1,35 @@
 # Internal
 import typing as T
 from asyncio import AbstractEventLoop, iscoroutinefunction
+from contextlib import contextmanager
 
 # External
 import typing_extensions as Te
 
 # Project
 from ._types import ListenerCb, ListenerOpts
-from ._helpers import retrieve_loop_from_listener, retrieve_listeners_from_namespace
-from ._helpers.get_running_loop import get_running_loop
+from ._helpers import (
+    get_running_loop,
+    retrieve_loop_from_listener,
+    retrieve_listeners_from_namespace,
+)
 
 # Type generics
 K = T.TypeVar("K")
+
+
+@contextmanager
+def _context(
+    event: T.Union[str, T.Type[K]], namespace: object, listener: ListenerCb[K],
+) -> T.Generator[None, None, None]:
+    from . import remove
+
+    on(event, namespace, listener)
+
+    try:
+        yield
+    finally:
+        remove(event, namespace, listener)
 
 
 @T.overload
@@ -22,7 +40,21 @@ def on(
     *,
     once: bool = False,
     loop: T.Optional[AbstractEventLoop] = None,
+    context: Te.Literal[False] = False,
 ) -> T.Callable[[ListenerCb[K]], ListenerCb[K]]:
+    ...
+
+
+@T.overload
+def on(
+    event: T.Union[str, T.Type[K]],
+    namespace: object,
+    listener: ListenerCb[K],
+    *,
+    once: Te.Literal[False] = False,
+    loop: T.Optional[AbstractEventLoop] = None,
+    context: Te.Literal[True],
+) -> T.ContextManager[None]:
     ...
 
 
@@ -34,6 +66,7 @@ def on(
     *,
     once: bool = False,
     loop: T.Optional[AbstractEventLoop] = None,
+    context: Te.Literal[False] = False,
 ) -> ListenerCb[K]:
     ...
 
@@ -45,7 +78,8 @@ def on(
     *,
     once: bool = False,
     loop: T.Optional[AbstractEventLoop] = None,
-) -> T.Union[ListenerCb[K], T.Callable[[ListenerCb[K]], ListenerCb[K]]]:
+    context: bool = False,
+) -> T.Union[ListenerCb[K], T.ContextManager[None], T.Callable[[ListenerCb[K]], ListenerCb[K]]]:
     """Add a listener to event type.
 
     Arguments:
@@ -57,6 +91,7 @@ def on(
         loop: Specify a loop to bound to the given listener and ensure it is always executed in the
               correct context. (Default: Current running loop for coroutines functions, None for
               any other callable)
+        context: Return a context for easy management of this listener lifecycle
 
     Raises:
         TypeError: Failed to bound loop to listener.
@@ -70,8 +105,15 @@ def on(
 
     """
     if listener is None:
+        if context:
+            raise ValueError("Can't use context manager without a listener defined")
         # Decorator behaviour
         return lambda cb: on(event, namespace, cb, once=once, loop=loop)
+
+    if context:
+        if once:
+            raise ValueError("Can't use context manager with a once listener")
+        return _context(event, namespace, listener)
 
     if event is object:
         raise ValueError("Event type can't be object, too generic")
