@@ -7,8 +7,10 @@ from asyncio import Future, CancelledError
 from unittest.mock import Mock, call
 
 # External
-import emitter
 import asynctest
+
+# External
+import emitter
 from emitter.errors import ListenerEventLoopError, ListenerStoppedEventLoopError
 
 # Generic types
