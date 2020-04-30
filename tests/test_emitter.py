@@ -7,10 +7,8 @@ from asyncio import Future, CancelledError
 from unittest.mock import Mock, call
 
 # External
-import asynctest
-
-# External
 import emitter
+import asynctest
 from emitter.errors import ListenerEventLoopError, ListenerStoppedEventLoopError
 
 # Generic types
@@ -407,3 +405,10 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
             await future_error
 
         loop.close()
+
+    async def test_wait(self) -> None:
+        task = self.loop.create_task(emitter.wait(Event, Global))
+        await asyncio.sleep(0)
+        e = Event("Wowow")
+        self.assertTrue(await emitter.emit(e, Global))
+        self.assertIs(await task, e)

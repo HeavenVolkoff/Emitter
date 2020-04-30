@@ -300,6 +300,7 @@ from importlib_metadata import version
 # Project
 from ._on import on
 from ._emit import emit
+from ._wait import wait
 from ._types import Listeners
 from ._remove import remove
 from ._retrieve import retrieve
@@ -316,6 +317,7 @@ except Exception:  # pragma: no cover
 
 __all__ = (
     "on",
+    "wait",
     "emit",
     "remove",
     "retrieve",
