@@ -301,7 +301,7 @@ from importlib_metadata import version
 from ._on import on
 from ._emit import emit
 from ._wait import wait
-from ._types import Listeners
+from ._types import Listeners, Listenable
 from ._remove import remove
 from ._retrieve import retrieve
 
@@ -322,5 +322,6 @@ __all__ = (
     "remove",
     "retrieve",
     "Listeners",
+    "Listenable",
     "__version__",
 )

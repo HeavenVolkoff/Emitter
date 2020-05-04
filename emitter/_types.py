@@ -42,3 +42,8 @@ class Listeners:
         self.types: T.MutableMapping[
             type, T.MutableMapping[ListenerCb[T.Any], ListenerOpts]
         ] = defaultdict(BestDict)
+
+
+@Te.runtime_checkable
+class Listenable(Te.Protocol):
+    __listeners__: Listeners
