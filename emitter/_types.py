@@ -25,6 +25,7 @@ BestDict = (
 class ListenerOpts(Flag):
     NOP = 0
     ONCE = auto()
+    RAISE = auto()
 
 
 class ListenerCb(Te.Protocol[K]):

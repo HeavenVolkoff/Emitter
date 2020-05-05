@@ -17,6 +17,8 @@ from ._helpers import (
 # Type generics
 K = T.TypeVar("K", contravariant=True)
 
+_ONCE_EXEC_SENTINEL = object()
+
 
 def _exec_listener(
     listener: ListenerCb[K],
@@ -111,7 +113,7 @@ async def _exec_listeners(
     listeners: T.Sequence[T.Tuple[ListenerCb[K], ListenerOpts]], event_instance: K,
 ) -> bool:
     loop = get_running_loop()
-    listener: T.Optional[ListenerCb[K]] = None
+    handled = False
     for listener, opts in listeners:
         try:
             await _exec_listener_thread_safe(loop, listener, event_instance)
@@ -131,30 +133,47 @@ async def _exec_listeners(
                 else:
                     continue
 
-            # Warn about unhandled exceptions
-            loop.call_exception_handler(
-                {"message": "Unhandled exception during event emission", "exception": exc}
-            )
+            if opts & ListenerOpts.RAISE:
+                raise exc
+            else:
+                # Warn about unhandled exceptions
+                loop.call_exception_handler(
+                    {"message": "Unhandled exception during event emission", "exception": exc}
+                )
 
-    # Whether the previous iteration assigned the listener variable determines if a listener was
-    # executed or not
-    if listener is not None:
-        return True
-    elif isinstance(event_instance, Exception):
+        handled = (
+            handled or getattr(listener, "_once_exec_sentinel", None) is not _ONCE_EXEC_SENTINEL
+        )
+
+    if not handled and isinstance(event_instance, Exception):
         # When event_instance is an exception, and it is not handled, raise it back to user
         # context
         raise event_instance
 
-    return False
+    return handled
 
 
-def _clear_once(
-    filtered_listeners: T.Sequence[T.Tuple[ListenerCb[T.Any], ListenerOpts]],
-    listeners: T.MutableMapping[ListenerCb[T.Any], ListenerOpts],
-) -> None:
-    for listener, listener_opts in filtered_listeners:
-        if listener_opts & ListenerOpts.ONCE:
+def _handle_once(
+    listeners: T.MutableMapping[ListenerCb[K], ListenerOpts]
+) -> T.Iterator[T.Tuple[ListenerCb[K], ListenerOpts]]:
+    def _wrap_clear_once(listener: ListenerCb[K]) -> ListenerCb[K]:
+        def _clear_once(event: K) -> T.Optional[T.Awaitable[None]]:
+            if listener not in listeners:
+                setattr(_clear_once, "_once_exec_sentinel", _ONCE_EXEC_SENTINEL)
+                return None
+
             del listeners[listener]
+            return listener(event)
+
+        if hasattr(listener, "__loop__"):
+            setattr(_clear_once, "__loop__", getattr(listener, "__loop__"))
+
+        return _clear_once
+
+    return (
+        (_wrap_clear_once(listener) if opts & ListenerOpts.ONCE else listener, opts)
+        for listener, opts in listeners.items()
+    )
 
 
 def _retrieve_listeners(
@@ -176,29 +195,22 @@ def _retrieve_listeners(
         # Object is too generic, it would cause unexpected behaviour.
         raise ValueError("Event type can't be object, must be a subclass of it")
 
-    functions: T.List[T.Tuple[ListenerCb[K], ListenerOpts]] = []
-    for event_supertype in reversed(event_type.mro()[1:]):
+    function: T.List[T.Tuple[ListenerCb[K], ListenerOpts]] = []
+    if scope:
+        for step in reversed(range(-1, len(scope))):
+            scoped_listeners = listeners.scope[scope[: (step + 1)]]
+            function += _handle_once(scoped_listeners)
+
+    function += _handle_once(listeners.types[event_type])
+
+    for event_supertype in event_type.mro()[1:]:
         if event_instance is object or event_instance is BaseException:
             continue
 
         mro_listeners = listeners.types[event_supertype]
-        filtered_mao_listeners = tuple(mro_listeners.items())
-        _clear_once(filtered_mao_listeners, mro_listeners)
-        functions += filtered_mao_listeners
+        function += _handle_once(mro_listeners)
 
-    type_listeners = listeners.types[event_type]
-    filtered_type_listeners = tuple(type_listeners.items())
-    _clear_once(filtered_type_listeners, type_listeners)
-    functions += filtered_type_listeners
-
-    if scope:
-        for step in range(-1, len(scope)):
-            scoped_listeners = listeners.scope[scope[: (step + 1)]]
-            filtered_scoped_listeners = tuple(scoped_listeners.items())
-            _clear_once(filtered_scoped_listeners, scoped_listeners)
-            functions += filtered_scoped_listeners
-
-    return tuple(functions)
+    return function
 
 
 @T.overload

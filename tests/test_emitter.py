@@ -58,6 +58,77 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
 
         listener.assert_called_once_with(e)
 
+    async def test_listener_order(self) -> None:
+        event = ConnectionError("Test")
+        order_mock = Mock()
+
+        @emitter.on(Exception, Global, raise_on_exc=True)
+        def exception_1_listener(exc: Exception):
+            assert exc is event
+            order_mock("Exception 1")
+
+        @emitter.on(Exception, Global, raise_on_exc=True)
+        def exception_2_listener(exc: Exception):
+            assert exc is event
+            order_mock("Exception 2")
+
+        @emitter.on(OSError, Global, raise_on_exc=True)
+        def os_error_1_listener(exc: Exception):
+            assert exc is event
+            order_mock("OSError 1")
+
+        @emitter.on(OSError, Global, raise_on_exc=True)
+        def os_error_2_listener(exc: Exception):
+            assert exc is event
+            order_mock("OSError 2")
+
+        @emitter.on(ConnectionError, Global, raise_on_exc=True)
+        def connection_error_1_listener(exc: Exception):
+            assert exc is event
+            order_mock("ConnectionError 1")
+
+        @emitter.on(ConnectionError, Global, raise_on_exc=True)
+        def connection_error_2_listener(exc: Exception):
+            assert exc is event
+            order_mock("ConnectionError 2")
+
+        @emitter.on("error", Global, raise_on_exc=True)
+        def scoped_error_1_listener(exc: Exception):
+            assert exc is event
+            order_mock("ConnectionError scope=error 1")
+
+        @emitter.on("error", Global, raise_on_exc=True)
+        def scoped_error_2_listener(exc: Exception):
+            assert exc is event
+            order_mock("ConnectionError scope=error 2")
+
+        @emitter.on("error.connection", Global, raise_on_exc=True)
+        def scoped_error_connection_1_listener(exc: Exception):
+            assert exc is event
+            order_mock("ConnectionError scope=error.connection 1")
+
+        @emitter.on("error.connection", Global, raise_on_exc=True)
+        def scoped_error_connection_2_listener(exc: Exception):
+            assert exc is event
+            order_mock("ConnectionError scope=error.connection 2")
+
+        self.assertTrue(await emitter.emit(event, Global, scope="error.connection"))
+
+        order_mock.assert_has_calls(
+            [
+                call("ConnectionError scope=error.connection 1"),
+                call("ConnectionError scope=error.connection 2"),
+                call("ConnectionError scope=error 1"),
+                call("ConnectionError scope=error 2"),
+                call("ConnectionError 1"),
+                call("ConnectionError 2"),
+                call("OSError 1"),
+                call("OSError 2"),
+                call("Exception 1"),
+                call("Exception 2"),
+            ]
+        )
+
     async def test_listener_context(self) -> None:
         listener = Mock()
 
@@ -166,7 +237,24 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
 
         self.assertEqual(1, mock.time_result_was_called)
 
-    async def test_listener_coro_error(self) -> None:
+    async def test_listener_raise_error(self) -> None:
+        mock = Mock()
+
+        self.loop.set_exception_handler(mock)
+
+        @emitter.on(Event, Global, raise_on_exc=True)
+        async def listener(_: T.Any) -> None:
+            await asyncio.sleep(0)
+            raise RuntimeError("Ooops...")
+
+        with self.assertRaisesRegex(RuntimeError, "Ooops..."):
+            await emitter.emit(Event("Wowow"), Global)
+
+        await asyncio.sleep(0)
+
+        mock.assert_not_called()
+
+    async def test_listener_coro_error_no_raise(self) -> None:
         future_error = self.loop.create_future()
 
         @self.loop.set_exception_handler
@@ -182,6 +270,27 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
 
         with self.assertRaisesRegex(RuntimeError, "Ooops..."):
             await future_error
+
+    async def test_listener_handle_raise_error(self) -> None:
+        exc = RuntimeError("Ooops...")
+        mock = Mock()
+        mock1 = Mock()
+
+        self.loop.set_exception_handler(mock1)
+
+        @emitter.on(Event, Global, raise_on_exc=True)
+        async def listener(_: T.Any) -> None:
+            await asyncio.sleep(0)
+            raise exc
+
+        emitter.on(RuntimeError, listener, mock)
+
+        await emitter.emit(Event("Wowow"), Global)
+
+        # Allow the loop to cycle once
+        await asyncio.sleep(0)
+        mock1.assert_not_called()
+        mock.assert_called_once_with(exc)
 
     async def test_listener_coro_handle_error(self) -> None:
         exc = RuntimeError("Ooops...")

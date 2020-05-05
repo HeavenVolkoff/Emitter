@@ -20,11 +20,11 @@ K = T.TypeVar("K")
 
 @contextmanager
 def _context(
-    event: T.Union[str, T.Type[K]], namespace: object, listener: ListenerCb[K],
+    event: T.Union[str, T.Type[K]], namespace: object, listener: ListenerCb[K], raise_on_exc: bool
 ) -> T.Generator[None, None, None]:
     from . import remove
 
-    on(event, namespace, listener)
+    on(event, namespace, listener, raise_on_exc=raise_on_exc)
 
     try:
         yield
@@ -41,6 +41,7 @@ def on(
     once: bool = False,
     loop: T.Optional[AbstractEventLoop] = None,
     context: Te.Literal[False] = False,
+    raise_on_exc: bool = False,
 ) -> T.Callable[[ListenerCb[K]], ListenerCb[K]]:
     ...
 
@@ -54,6 +55,7 @@ def on(
     once: Te.Literal[False] = False,
     loop: T.Optional[AbstractEventLoop] = None,
     context: Te.Literal[True],
+    raise_on_exc: bool = False,
 ) -> T.ContextManager[None]:
     ...
 
@@ -67,6 +69,7 @@ def on(
     once: bool = False,
     loop: T.Optional[AbstractEventLoop] = None,
     context: Te.Literal[False] = False,
+    raise_on_exc: bool = False,
 ) -> ListenerCb[K]:
     ...
 
@@ -79,6 +82,7 @@ def on(
     once: bool = False,
     loop: T.Optional[AbstractEventLoop] = None,
     context: bool = False,
+    raise_on_exc: bool = False,
 ) -> T.Union[ListenerCb[K], T.ContextManager[None], T.Callable[[ListenerCb[K]], ListenerCb[K]]]:
     """Add a listener to event type.
 
@@ -92,6 +96,8 @@ def on(
               correct context. (Default: Current running loop for coroutines functions, None for
               any other callable)
         context: Return a context for easy management of this listener lifecycle
+        raise_on_exc: Whether an untreated exception raised by this listener will make an event
+                      emission to fail.
 
     Raises:
         TypeError: Failed to bound loop to listener.
@@ -108,12 +114,12 @@ def on(
         if context:
             raise ValueError("Can't use context manager without a listener defined")
         # Decorator behaviour
-        return lambda cb: on(event, namespace, cb, once=once, loop=loop)
+        return lambda cb: on(event, namespace, cb, once=once, loop=loop, raise_on_exc=raise_on_exc)
 
     if context:
         if once:
             raise ValueError("Can't use context manager with a once listener")
-        return _context(event, namespace, listener)
+        return _context(event, namespace, listener, raise_on_exc=raise_on_exc)
 
     if event is object:
         raise ValueError("Event type can't be object, too generic")
@@ -139,6 +145,8 @@ def on(
     opts = ListenerOpts.NOP
     if once:
         opts |= ListenerOpts.ONCE
+    if raise_on_exc:
+        opts |= ListenerOpts.RAISE
 
     if loop is None and iscoroutinefunction(listener):
         # Automatically set loop for Coroutines to avoid problems with emission from another thread

@@ -4,7 +4,7 @@ import typing as T
 # Project
 from ._on import on
 from ._remove import remove
-from ._helpers import get_running_loop, retrieve_loop_from_listener
+from ._helpers import get_running_loop, retrieve_listeners_from_namespace
 
 # Type generics
 K = T.TypeVar("K")
@@ -18,7 +18,7 @@ async def wait(event: T.Union[str, T.Type[K]], namespace: object) -> K:
     # Retrieve listeners
     loop = get_running_loop()
     result: "Future[K]" = loop.create_future()
-    listeners = retrieve_loop_from_listener(namespace)
+    listeners = retrieve_listeners_from_namespace(namespace)
 
     # Don't keep namespace reference
     del namespace
