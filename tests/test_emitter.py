@@ -421,16 +421,18 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
         emitter.on(Event, Global, mock, once=True)
 
         e = Event("0")
-        results = await asyncio.gather(
-            emitter.emit(e, Global),
-            emitter.emit(Event("1"), Global),
-            emitter.emit(Event("2"), Global),
-            emitter.emit(Event("3"), Global),
-        )
-
-        self.assertListEqual([True, False, False, False], results)
-
+        self.assertTrue(await emitter.emit(e, Global))
         mock.assert_called_once_with(e)
+        mock.reset_mock()
+
+        self.assertFalse(await emitter.emit(Event("1"), Global))
+        mock.assert_not_called()
+
+        self.assertFalse(await emitter.emit(Event("2"), Global))
+        mock.assert_not_called()
+
+        self.assertFalse(await emitter.emit(Event("3"), Global))
+        mock.assert_not_called()
 
     async def test_once_fail_context(self) -> None:
         mock = Mock()
@@ -438,16 +440,7 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Can't use context manager with a once listener"):
             emitter.on(Event, Global, mock, once=True, context=True)
 
-        e = Event("0")
-        results = await asyncio.gather(
-            emitter.emit(e, Global),
-            emitter.emit(Event("1"), Global),
-            emitter.emit(Event("2"), Global),
-            emitter.emit(Event("3"), Global),
-        )
-
-        self.assertListEqual([False, False, False, False], results)
-
+        self.assertFalse(await emitter.emit(Event("0"), Global))
         mock.assert_not_called()
 
     async def test_superclass_listeners(self) -> None:
