@@ -330,16 +330,19 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
         with self.assertRaises(ValueError):
             emitter.on(str, Global, {})
 
-    @asynctest.fail_on(unused_loop=False)
-    def test_invalid_types_slotted_class_with_loop(self) -> None:
+    async def test_slotted_class_with_loop(self) -> None:
+        mock = Mock()
+        event = Event("")
+
         class Listener:
             __slots__ = tuple()
 
             def __call__(self, event: Event) -> None:
-                return None
+                mock(event)
 
-        with self.assertRaises(AttributeError):
-            emitter.on(str, Global, Listener(), loop=self.loop)
+        emitter.on(Event, Global, Listener(), loop=self.loop)
+        self.assertTrue(await emitter.emit(event, Global))
+        mock.assert_called_once_with(event)
 
     async def test_invalid_types_metaclass(self) -> None:
         mock = Mock()

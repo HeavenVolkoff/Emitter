@@ -1,4 +1,3 @@
 # Project
-from .get_running_loop import get_running_loop
-from .retrieve_loop_from_listener import retrieve_loop_from_listener
-from .retrieve_listeners_from_namespace import retrieve_listeners_from_namespace
+from .loop import get_running_loop, bound_loop_to_listener, retrieve_loop_from_listener
+from .namespace import retrieve_listeners_from_namespace

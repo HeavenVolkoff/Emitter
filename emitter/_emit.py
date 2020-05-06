@@ -7,7 +7,7 @@ import typing_extensions as Te
 
 # Project
 from ._types import Listeners, ListenerCb, ListenerOpts
-from .errors import ListenerEventLoopError, ListenerStoppedEventLoopError
+from .errors import ListenerEventLoopError
 from ._helpers import (
     get_running_loop,
     retrieve_loop_from_listener,
@@ -78,15 +78,6 @@ def _exec_listener_thread_safe(
     loop: AbstractEventLoop, listener: ListenerCb[K], event_instance: K
 ) -> "Future[None]":
     listener_loop = retrieve_loop_from_listener(listener) or loop
-
-    if not listener_loop.is_running():
-        # A stopped event loop means this listener got stale
-        raise ListenerStoppedEventLoopError(
-            "Attempting to execute a listener bounded to a stopped event loop",
-            listener_loop,
-            listener,
-        )
-
     # Create an internal future to better control the listener result
     result_future = loop.create_future()
     if listener_loop is loop:

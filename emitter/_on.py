@@ -8,11 +8,7 @@ import typing_extensions as Te
 
 # Project
 from ._types import ListenerCb, ListenerOpts
-from ._helpers import (
-    get_running_loop,
-    retrieve_loop_from_listener,
-    retrieve_listeners_from_namespace,
-)
+from ._helpers import get_running_loop, bound_loop_to_listener, retrieve_listeners_from_namespace
 
 # Type generics
 K = T.TypeVar("K")
@@ -155,9 +151,8 @@ def on(
         except RuntimeError:
             loop = None
 
-    # Bound listener to loop
-    if retrieve_loop_from_listener(listener, loop) is not loop:
-        raise TypeError("Failed to set loop to listener")
+    if loop:
+        listener = bound_loop_to_listener(listener, loop)
 
     # Retrieve listeners
     listeners = retrieve_listeners_from_namespace(namespace)
