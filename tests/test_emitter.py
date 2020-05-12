@@ -316,18 +316,33 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
 
         mock.assert_called_once_with(exc)
 
+    async def test_emit_none(self) -> None:
+        mock = Mock()
+        emitter.on("test", Global, mock)
+
+        with self.assertRaisesRegex(
+            ValueError, "Event type can only be None when accompanied of a scope"
+        ):
+            await emitter.emit(None, Global)
+
+        mock.assert_not_called()
+
+        self.assertTrue(await emitter.emit(None, Global, scope="test"))
+
+        mock.assert_called_once_with(None)
+
     @asynctest.fail_on(unused_loop=False)
     def test_invalid_types_not_callable(self) -> None:
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(ValueError, "Listener must be callable"):
             emitter.on(str, Global, "")
 
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(ValueError, "Listener must be callable"):
             emitter.on(str, Global, 1)
 
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(ValueError, "Listener must be callable"):
             emitter.on(str, Global, [])
 
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(ValueError, "Listener must be callable"):
             emitter.on(str, Global, {})
 
     async def test_slotted_class_with_loop(self) -> None:
@@ -337,8 +352,8 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
         class Listener:
             __slots__ = tuple()
 
-            def __call__(self, event: Event) -> None:
-                mock(event)
+            def __call__(self, e: Event) -> None:
+                mock(e)
 
         emitter.on(Event, Global, Listener(), loop=self.loop)
         self.assertTrue(await emitter.emit(event, Global))
@@ -355,6 +370,17 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
 
         with self.assertRaises(ValueError):
             await emitter.emit(Meta("", tuple(), {}), Global)
+
+        mock.assert_not_called()
+
+    async def test_invalid_types_none(self) -> None:
+        mock = Mock()
+
+        with self.assertRaises(ValueError):
+            emitter.on(None, Global, mock)
+
+        with self.assertRaises(ValueError):
+            await emitter.emit(object(), Global)
 
         mock.assert_not_called()
 
@@ -519,3 +545,173 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
         e = Event("Wowow")
         self.assertTrue(await emitter.emit(e, Global))
         self.assertIs(await task, e)
+
+    async def test_context(self) -> None:
+        e = Event("")
+        mock = Mock()
+        mock2 = Mock()
+        self.assertFalse(await emitter.emit(e, Global))
+
+        with emitter.context() as context:
+            self.assertFalse(await emitter.emit(e, Global))
+            self.assertFalse(await emitter.emit(None, Global, scope="test"))
+            mock.assert_not_called()
+            mock2.assert_not_called()
+
+            @emitter.on(Event, Global)
+            def main_listener(_: T.Any) -> None:
+                emitter.on("test", Global, mock)
+
+            self.assertTrue(await emitter.emit(e, Global))
+            self.assertTrue(await emitter.emit(None, Global, scope="test"))
+            mock.assert_called_once_with(None)
+            mock.reset_mock()
+
+            @emitter.on(Event, Global)
+            async def async_main_listener(_: T.Any) -> None:
+                await asyncio.sleep(0)
+                emitter.on("test", Global, mock2)
+
+            self.assertTrue(await emitter.emit(e, Global))
+            self.assertTrue(await emitter.emit(None, Global, scope="test"))
+            mock.assert_called_once_with(None)
+            mock.reset_mock()
+            mock2.assert_called_once_with(None)
+            mock2.reset_mock()
+
+            emitter.remove(None, Global, context=context)
+
+            self.assertFalse(await emitter.emit(e, Global))
+            self.assertFalse(await emitter.emit(None, Global, scope="test"))
+            mock.assert_not_called()
+            mock2.assert_not_called()
+
+    async def test_context_stack(self) -> None:
+        mock = Mock()
+
+        with emitter.context() as ctx0:
+            emitter.on("test", Global, lambda x: mock(1))
+
+            @emitter.on("test", Global)
+            async def async_main_listener0(_: T.Any) -> None:
+                await asyncio.sleep(0)
+                emitter.on("test", Global, lambda x: mock(2))
+                emitter.remove("test", Global, async_main_listener0)
+
+        with emitter.context() as ctx1:
+            emitter.on("test", Global, lambda x: mock(3))
+
+            with emitter.context() as ctx2:
+                emitter.on("test", Global, lambda x: mock(4))
+
+            with emitter.context():
+
+                @emitter.on("test", Global)
+                async def async_main_listener1(_: T.Any) -> None:
+                    await asyncio.sleep(0)
+                    emitter.on("test", Global, lambda x: mock(5))
+                    emitter.remove("test", Global, async_main_listener1)
+
+                with emitter.context():
+                    emitter.on("test", Global, lambda x: mock(6))
+
+        self.assertTrue(await emitter.emit(None, Global, scope="test"))
+        mock.assert_has_calls([call(1), call(3), call(4), call(6)])
+        mock.reset_mock()
+        self.assertTrue(await emitter.emit(None, Global, scope="test"))
+        mock.assert_has_calls([call(1), call(3), call(4), call(6), call(2), call(5)])
+        mock.reset_mock()
+        emitter.remove(None, Global, context=ctx2)
+        self.assertTrue(await emitter.emit(None, Global, scope="test"))
+        mock.assert_has_calls([call(1), call(3), call(6), call(2), call(5)])
+        mock.reset_mock()
+        emitter.remove(None, Global, context=ctx0)
+        self.assertTrue(await emitter.emit(None, Global, scope="test"))
+        mock.assert_has_calls([call(3), call(6), call(5)])
+        mock.reset_mock()
+        emitter.remove(None, Global, context=ctx1)
+        self.assertFalse(await emitter.emit(None, Global, scope="test"))
+        mock.assert_not_called()
+
+    async def test_concomitant_context(self) -> None:
+        async def test_context(scope: str, time: T.Union[int, float]) -> None:
+            mock = Mock()
+            mock2 = Mock()
+
+            with emitter.context() as context:
+
+                @emitter.on(scope, Global)
+                def main_listener(_: T.Any) -> None:
+                    emitter.on(scope, Global, mock)
+
+                await emitter.emit(None, Global, scope=scope)
+                mock.assert_not_called()
+                mock2.assert_not_called()
+                await emitter.emit(None, Global, scope=scope)
+                mock.assert_called_once_with(None)
+                mock2.assert_not_called()
+                mock.reset_mock()
+
+                @emitter.on(scope, Global)
+                async def async_main_listener(_: T.Any) -> None:
+                    await asyncio.sleep(0)
+                    emitter.on(scope, Global, mock2)
+
+                await asyncio.sleep(time)
+
+                await emitter.emit(None, Global, scope=scope)
+                mock.assert_called_once_with(None)
+                mock2.assert_not_called()
+                mock.reset_mock()
+                await emitter.emit(None, Global, scope=scope)
+                mock.assert_called_once_with(None)
+                mock.reset_mock()
+                mock2.assert_called_once_with(None)
+                mock2.reset_mock()
+
+                emitter.remove(None, Global, context=context)
+
+                await emitter.emit(None, Global, scope=scope)
+                mock.assert_not_called()
+                mock2.assert_not_called()
+
+        await asyncio.gather(
+            test_context("test0", 0),
+            test_context("test1", 0),
+            test_context("test2", 0),
+            test_context("test3", 0),
+            test_context("test4", 0),
+            test_context("test5", 0),
+            test_context("test6", 0),
+            test_context("test7", 0),
+            test_context("test8", 0),
+            test_context("test9", 0),
+        )
+
+        await asyncio.gather(
+            test_context("test0", 0),
+            test_context("test1", 0.1),
+            test_context("test2", 0.2),
+            test_context("test3", 0.3),
+            test_context("test4", 0.4),
+            test_context("test5", 0.5),
+            test_context("test6", 0.6),
+            test_context("test7", 0.7),
+            test_context("test8", 0.8),
+            test_context("test9", 0.9),
+        )
+
+        await asyncio.gather(
+            test_context("test0", 0),
+            test_context("test1", 0.5),
+            test_context("test2", 0.4),
+            test_context("test3", 0.7),
+            test_context("test4", 0.9),
+            test_context("test5", 0.5),
+            test_context("test6", 0.3),
+            test_context("test7", 0.3),
+            test_context("test8", 0.1),
+            test_context("test9", 0.32),
+        )
+
+    # TODO: Test multiple loops

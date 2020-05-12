@@ -27,17 +27,16 @@ class UserRegisteredEvent(NamedTuple):
 ```
 
 ... warning:
-    The soles exceptions are bare objects and BaseExceptions.
-    The reason they can't be events is due to unexpected behaviour.
+    The soles exceptions are bare objects, NoneType, and BaseExceptions.
+    The reason they can't be events is due possible unexpected behaviour by the user.
     Bare object are too generic and listeners attached to it would run for all fired events, which
-    probably isn't the behaviour expected by the user.
-    BaseExceptions have special meaning, and the python interpreter normally expectes to handle
-    them internally, so trapping them as events would probably result in unexpected behaviour
+    probably isn't the behaviour expected or wanted by the user.
+    BaseExceptions have special meaning, and the python interpreter normally expects to handle
+    them internally, so trapping them as events wouldn't be advisable.
 
 The method `emitter.emit` enables arbitrary event emission.
-It receives a single argument, that is an instance of the event to be emitted, it returns a
-`emitter.HandleMode` indicating whether it executed any listener and in which namespace it executed
-them.
+It receives a single argument, that is an instance of the event to be emitted and returns a boolean
+indicating whether any listener were executed.
 
 ```python
 listener_executed = await emitter.emit(
@@ -46,8 +45,8 @@ listener_executed = await emitter.emit(
     )
 )
 
-# listener_executed is equal to HandleMode.NONE or 0
-# That is because there is no listener registered for this event
+# listener_executed is False
+# That is because there is no listener registered for this event at the moment
 assert not listener_executed
 ```
 .. important::
@@ -145,11 +144,6 @@ async def write_user(event: UserRegisteredEvent) -> None:
     Whenever `emitter.emit` attempts to execute a listener bounded to a stopped loop, it fires this
     event. It is an Exception subclass.
 
-- `emitter.ListenerMissingEventLoopError`
-
-    Whenever `emitter.emit` attempts to execute a listener which bounded loop was garbage
-    collected, it fires this event. It is an Exception subclass.
-
 - `Exception` and it's subclasses:
 
     Their behaviour is equivalent to any other event type, with the sole difference being when
@@ -158,16 +152,13 @@ async def write_user(event: UserRegisteredEvent) -> None:
 
 ## Scopes
 
-TODO: Rewrite this part, it is fully wrong
+Scope is a feature that allow emitting events bounded to a namespace, and listening to events given
+a namespace and not an event type.
 
-Scope is a feature that allow limiting the execution of listeners to specific instances of an event
-emission.
-
-A scoped listener definition requires passing the `scope` argument to `emitter.on`.
-It's default value is the empty scope, which is the one where all listeners registered under it are
-guarantee to be executed whenever there is any emission of the event they are bounded to.
+A scoped listener definition requires passing a scope namespace as argument to `emitter.on`,
+instead of an event type.
 ```python
-@emitter.on(UserRegisteredEvent, scope="permission.manager")
+@emitter.on("permission.manager")
 async def write_admin_permission(event: UserRegisteredEvent) -> None:
     conn = await asyncpg.connect(
         host='127.0.0.1'
@@ -183,10 +174,11 @@ async def write_admin_permission(event: UserRegisteredEvent) -> None:
 
     await conn.close()
 ```
-Scope is a dot separated string. Each dot constrained name defines a more specif scope that must
-also be specified when emitting an event to enable the execution of the registered scoped listener.
-Scoped events will execute all listeners from the most generic scope (the empty scope) till the
-specified scope.
+Scope namespace is a dot separated string. Each dot constrained name defines a more specific scope
+that must also be specified when emitting an event to enable the execution of the registered scoped
+listener.
+Scoped events will execute all listeners registered to the given scope as well as more generic
+ones. Event type listeners will also be executed as normal.
 ```python
 await emitter.emit(
     UserRegisteredEvent(
@@ -200,68 +192,13 @@ await emitter.emit(
 The call above will execute all 5 listeners that were registered in the event. Being 4 of them
 unscoped (or empty scoped), and the last one scoped under `permission.manager`.
 
-## Namespace
-
-Namespace is functionally equivalent to Scope.
-However instead of defining a list of generic names, Namespace limit the listener execution
-to certain object instances.
-
-A namespaced listener definition requires passing the `namespace` argument to `emitter.on`.
-It's default value is the global namespace, which is the one where all listeners registered under
-it are guarantee to be executed whenever there is any emission of the event they are bounded to.
-```python
-site1_reader, _ = loop.create_connection()
-site2_reader, _ = loop.create_connection()
-
-@emitter.on(str, namespace=site1_reader)
-async def write_data_site_1(event: str) -> None:
-    conn = await asyncpg.connect(
-        host='127.0.0.1'
-        user='user',
-        password='password',
-        database='database',
-    )
-
-    await con.execute(
-        'INSERT INTO data(json) VALUES($1)',
-        event
-    )
-
-    await conn.close()
-
-@emitter.on(str, namespace=site2_reader)
-async def write_data_site_1(event: str) -> None:
-    conn = await asyncpg.connect(
-        host='10.24.0.1'
-        user='user',
-        password='password',
-        database='database',
-    )
-
-    await con.execute(
-        'INSERT INTO data(json) VALUES($1)',
-        event
-    )
-
-    await conn.close()
-
-await emitter.emit(await site1_reader.read(), namespace=site1_reader)
-await emitter.emit(await site2_reader.read(), namespace=site2_reader)
-```
-
-Namespace and scopes can be combined freely.
-
-.. important::
-    `emitter.emit` always execute listeners in the global namespace. After, it executes listeners
-    in local namespaces if any was given to it.
-
 ## Event inheritance
 
 Event inheritance allows specialization of events and their listeners.
 
 Whenever `emitter.emit` is called with an event type instance, it will retrieve all superclasses
-that this instance inherits from, filter them by the ones that have registered unscoped listeners
-and emit their events.
+that this instance inherits from, filter them by the ones that have registered listeners and emit
+their events.
 
 ```python
 from dataclass import dataclass
@@ -302,13 +239,24 @@ Functions
 ---------
 
     
-`emit(event_instance: object, namespace: object, *, scope: str = '') -> Coroutine[NoneType, NoneType, bool]`
+`emit(event_instance: object, namespace: object, *, loop: Union[asyncio.events.AbstractEventLoop, NoneType] = None, scope: str = '') -> Union[NoneType, ForwardRef('Task[bool]'), Coroutine[NoneType, NoneType, bool]]`
 :   Emit an event, and execute its listeners.
+    
+    When called without a defined loop argument this function always returns a coroutine.
+    
+    When called with a defined loop argument this function may return a Task or, when there is
+    no listener for the given event, None.
+    
+    Listener execution order is as follows:
+    - Scoped listeners, from more specific ones to more generics. (Only when scope is passed)
+    - Listener for event type.
+    - Listener for event super types, from specific super class to generic ones
     
     Arguments:
         event_instance: Event instance to be emitted.
-        scope: Define till which scopes this event will execute its listeners.
         namespace: Specify a listener namespace to emit this event.
+        loop: Define a loop to execute the listeners.
+        scope: Define a scope for this event.
     
     Raises:
         ValueError: event_instance is an instance of a builtin type, or it is a type instead of an
@@ -317,24 +265,26 @@ Functions
         CancelledError: Raised whenever the loop (or something) cancels this coroutine.
     
     Returns:
-        Whether this event emission resulted in any listener execution.
-        The returned type is `emitter.HandleMode`. It provides information on which listener
-        bundled: global, namespace or both, that handled this event.
-        If no listener handled this event the return value is 0.
+        Coroutine or awaitable representing the event emission
 
     
-`on(event: Union[str, Type[~K]], namespace: object, listener: Union[emitter._types.ListenerCb[~K], NoneType] = None, *, once: bool = False, loop: Union[asyncio.events.AbstractEventLoop, NoneType] = None) -> Union[emitter._types.ListenerCb[~K], Callable[[emitter._types.ListenerCb[~K]], emitter._types.ListenerCb[~K]]]`
+`on(event: Union[str, Type[~K]], namespace: object, listener: Union[emitter._types.ListenerCb[~K], NoneType] = None, *, once: bool = False, loop: Union[asyncio.events.AbstractEventLoop, NoneType] = None, context: bool = False, raise_on_exc: bool = False) -> Union[emitter._types.ListenerCb[~K], AbstractContextManager[NoneType], Callable[[emitter._types.ListenerCb[~K]], emitter._types.ListenerCb[~K]]]`
 :   Add a listener to event type.
     
+    Context can't be specified when using this function in decorator mode.
+    Context can't be specified when passing once=True.
+    
     Arguments:
-        event: Event type to attach the listener to.
-        namespace: Specify which listeners namespace to attach the given event listener.
-                   (Default: Global namespace)
-        listener: Callable to be executed when there is an emission of the given event type.
+        event: Specify which event type or scope namespace will trigger this listener execution.
+        namespace: Specify the namespace in which the listener will be attached.
+        listener: Callable to be executed when there is an emission of the given event.
         once: Define whether the given listener is to be removed after it's first execution.
         loop: Specify a loop to bound to the given listener and ensure it is always executed in the
               correct context. (Default: Current running loop for coroutines functions, None for
               any other callable)
+        context: Return a context for management of this listener lifecycle.
+        raise_on_exc: Whether an untreated exception raised by this listener will make an event
+                      emission to fail.
     
     Raises:
         TypeError: Failed to bound loop to listener.
@@ -345,20 +295,19 @@ Functions
         If listener isn't provided, this method returns a function that takes a Callable as a         single argument. As such it can be used as a decorator. In both the decorated and         undecorated forms this function returns the given event listener.
 
     
-`remove(event: Union[str, NoneType, Type[~K]], namespace: object, listener: Union[emitter._types.ListenerCb[~K], NoneType] = None) -> bool`
+`remove(event: Union[str, NoneType, Type[~K]], namespace: object, listener: Union[emitter._types.ListenerCb[~K], NoneType] = None, context: Union[emitter._context.context, NoneType] = None) -> bool`
 :   Remove listeners, limited by scope, from given event type.
     
-    No event_type, which also assumes no scope and listener, results in the removal of all
-    listeners from the given namespace (`None` means global).
+    When no context is provided assumes current context.
     
-    No scope and listener, results in the removal of all listeners of the specified event from the
-    given namespace (`None` means global).
+    When no event_type and no listener are passed removes all listeners from the given namespace
+    and context.
     
-    No scope, results in the removal of given listener from all scopes of the specified event from
-    the given namespace (`None` means global).
+    When no event_type is specified but a listener is given removes all references to the listener,
+    whetever scoped or typed, from the given namespace and context.
     
-    An event_type, listener and scope, results in the removal of given listener from this scope of
-    the specified event from the given namespace (`None` means global).
+    When both event and listener are specified, remove only the correspondent match from the given
+    namespace and context.
     
     Raises:
         ValueError: event_type is None, but scope or listener are not.
@@ -367,23 +316,33 @@ Functions
         event: Define from which event types the listeners will be removed.
         listener: Define the listener to be removed.
         namespace: Define from which namespace to remove the listener
+        context: Define context to restrict listener removal
     
     Returns:
         Whether any listener removal occurred.
 
     
-`retrieve(event: Union[str, Type[~K]], namespace: object) -> Sequence[emitter._types.ListenerCb[~K]]`
-:   Retrieve all listeners, limited by scope, registered to the given event type.
+`wait(event: Union[str, Type[~K]], namespace: object) -> ~K`
+:   This is a helper function that awaits for the first execution of a given
+    event or scope namespace and return its value.
     
     Arguments:
-        event: Define from which event types the listeners will be retrieve.
-        namespace: Define from which namespace to retrieve the listeners
+        event: Event type or scope namespace.
+        namespace: Specify the namespace in which to wait for the event emission.
     
     Returns:
-        A `Sequence` containing all listeners attached to given event type, limited by the given         scope
+        Emitted event instance.
 
 Classes
 -------
+
+`Listenable(*args, **kwds)`
+:   A protocol that defines emitter namespaces
+
+    ### Ancestors (in MRO)
+
+    * typing.Protocol
+    * typing.Generic
 
 `Listeners()`
 :   
@@ -395,3 +354,24 @@ Classes
 
     `types`
     :   Return an attribute of instance, which is of type owner.
+
+`context(*args, **kwds)`
+:   Emitter listener context.
+    
+    For advanced control of listener's life-cycle.
+    
+    TODO: Improve, add examples
+
+    ### Ancestors (in MRO)
+
+    * contextlib.AbstractContextManager
+    * abc.ABC
+    * typing.Generic
+
+    ### Methods
+
+    `add(self, other: uuid.UUID) -> NoneType`
+    :   Add an identifier to this context.
+        
+        Args:
+            other: Identifier

@@ -2,12 +2,15 @@
 import sys
 import typing as T
 from enum import Flag, auto, unique
+from uuid import UUID
 from platform import python_implementation
 from collections import OrderedDict, defaultdict
+from contextvars import Context
 
 # External
 import typing_extensions as Te
 
+# Generic types
 K = T.TypeVar("K", contravariant=True)
 
 # Python 3.7+ dicts are ordered by default, and they are slightly faster than OrderedDicts
@@ -37,14 +40,21 @@ class Listeners:
     __slots__ = ("scope", "types")
 
     def __init__(self) -> None:
-        self.scope: T.MutableMapping[
-            T.Tuple[str, ...], T.MutableMapping[ListenerCb[T.Any], ListenerOpts]
+        self.scope: Te.Final[
+            T.MutableMapping[
+                T.Tuple[str, ...],
+                T.MutableMapping[ListenerCb[T.Any], T.Tuple[ListenerOpts, Context]],
+            ]
         ] = defaultdict(BestDict)
-        self.types: T.MutableMapping[
-            type, T.MutableMapping[ListenerCb[T.Any], ListenerOpts]
+        self.types: Te.Final[
+            T.MutableMapping[
+                type, T.MutableMapping[ListenerCb[T.Any], T.Tuple[ListenerOpts, Context]]
+            ]
         ] = defaultdict(BestDict)
 
 
 @Te.runtime_checkable
 class Listenable(Te.Protocol):
+    """A protocol that defines emitter namespaces"""
+
     __listeners__: Listeners

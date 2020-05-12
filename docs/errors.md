@@ -28,19 +28,7 @@ Classes
 
     ### Descendants
 
-    * emitter.errors.ListenerMissingEventLoopError
     * emitter.errors.ListenerStoppedEventLoopError
-
-`ListenerMissingEventLoopError(...)`
-:   Attempt to execute a listener which was bound to a garbage collected event loop.
-
-    ### Ancestors (in MRO)
-
-    * emitter.errors.ListenerEventLoopError
-    * emitter.errors.EmitterError
-    * builtins.RuntimeError
-    * builtins.Exception
-    * builtins.BaseException
 
 `ListenerStoppedEventLoopError(...)`
 :   Attempt to execute a listener bounded to a stopped event loop.

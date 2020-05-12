@@ -2,6 +2,7 @@
 import typing as T
 from asyncio import AbstractEventLoop, iscoroutinefunction
 from contextlib import contextmanager
+from contextvars import copy_context
 
 # External
 import typing_extensions as Te
@@ -82,16 +83,18 @@ def on(
 ) -> T.Union[ListenerCb[K], T.ContextManager[None], T.Callable[[ListenerCb[K]], ListenerCb[K]]]:
     """Add a listener to event type.
 
+    Context can't be specified when using this function in decorator mode.
+    Context can't be specified when passing once=True.
+
     Arguments:
-        event: Event type to attach the listener to.
-        namespace: Specify which listeners namespace to attach the given event listener.
-                   (Default: Global namespace)
-        listener: Callable to be executed when there is an emission of the given event type.
+        event: Specify which event type or scope namespace will trigger this listener execution.
+        namespace: Specify the namespace in which the listener will be attached.
+        listener: Callable to be executed when there is an emission of the given event.
         once: Define whether the given listener is to be removed after it's first execution.
         loop: Specify a loop to bound to the given listener and ensure it is always executed in the
               correct context. (Default: Current running loop for coroutines functions, None for
               any other callable)
-        context: Return a context for easy management of this listener lifecycle
+        context: Return a context for management of this listener lifecycle.
         raise_on_exc: Whether an untreated exception raised by this listener will make an event
                       emission to fail.
 
@@ -116,6 +119,9 @@ def on(
         if once:
             raise ValueError("Can't use context manager with a once listener")
         return _context(event, namespace, listener, raise_on_exc=raise_on_exc)
+
+    if event is None:
+        raise ValueError("Event type can't be NoneType")
 
     if event is object:
         raise ValueError("Event type can't be object, too generic")
@@ -154,14 +160,17 @@ def on(
     if loop:
         listener = bound_loop_to_listener(listener, loop)
 
+    # Group listener's opts and context
+    listener_info = (opts, copy_context())
+
     # Retrieve listeners
     listeners = retrieve_listeners_from_namespace(namespace)
 
     # Add the given listener to the correct queue
     if scope:
-        listeners.scope[scope][listener] = opts
+        listeners.scope[scope][listener] = listener_info
     else:
         assert isinstance(event, type)
-        listeners.types[event][listener] = opts
+        listeners.types[event][listener] = listener_info
 
     return listener

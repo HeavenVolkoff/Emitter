@@ -25,17 +25,16 @@ class UserRegisteredEvent(NamedTuple):
 ```
 
 ... warning:
-    The soles exceptions are bare objects and BaseExceptions.
-    The reason they can't be events is due to unexpected behaviour.
+    The soles exceptions are bare objects, NoneType, and BaseExceptions.
+    The reason they can't be events is due possible unexpected behaviour by the user.
     Bare object are too generic and listeners attached to it would run for all fired events, which
-    probably isn't the behaviour expected by the user.
-    BaseExceptions have special meaning, and the python interpreter normally expectes to handle
-    them internally, so trapping them as events would probably result in unexpected behaviour
+    probably isn't the behaviour expected or wanted by the user.
+    BaseExceptions have special meaning, and the python interpreter normally expects to handle
+    them internally, so trapping them as events wouldn't be advisable.
 
 The method `emitter.emit` enables arbitrary event emission.
-It receives a single argument, that is an instance of the event to be emitted, it returns a
-`emitter.HandleMode` indicating whether it executed any listener and in which namespace it executed
-them.
+It receives a single argument, that is an instance of the event to be emitted and returns a boolean
+indicating whether any listener were executed.
 
 ```python
 listener_executed = await emitter.emit(
@@ -44,8 +43,8 @@ listener_executed = await emitter.emit(
     )
 )
 
-# listener_executed is equal to HandleMode.NONE or 0
-# That is because there is no listener registered for this event
+# listener_executed is False
+# That is because there is no listener registered for this event at the moment
 assert not listener_executed
 ```
 .. important::
@@ -143,11 +142,6 @@ async def write_user(event: UserRegisteredEvent) -> None:
     Whenever `emitter.emit` attempts to execute a listener bounded to a stopped loop, it fires this
     event. It is an Exception subclass.
 
-- `emitter.ListenerMissingEventLoopError`
-
-    Whenever `emitter.emit` attempts to execute a listener which bounded loop was garbage
-    collected, it fires this event. It is an Exception subclass.
-
 - `Exception` and it's subclasses:
 
     Their behaviour is equivalent to any other event type, with the sole difference being when
@@ -156,16 +150,13 @@ async def write_user(event: UserRegisteredEvent) -> None:
 
 ## Scopes
 
-TODO: Rewrite this part, it is fully wrong
+Scope is a feature that allow emitting events bounded to a namespace, and listening to events given
+a namespace and not an event type.
 
-Scope is a feature that allow limiting the execution of listeners to specific instances of an event
-emission.
-
-A scoped listener definition requires passing the `scope` argument to `emitter.on`.
-It's default value is the empty scope, which is the one where all listeners registered under it are
-guarantee to be executed whenever there is any emission of the event they are bounded to.
+A scoped listener definition requires passing a scope namespace as argument to `emitter.on`,
+instead of an event type.
 ```python
-@emitter.on(UserRegisteredEvent, scope="permission.manager")
+@emitter.on("permission.manager")
 async def write_admin_permission(event: UserRegisteredEvent) -> None:
     conn = await asyncpg.connect(
         host='127.0.0.1'
@@ -181,10 +172,11 @@ async def write_admin_permission(event: UserRegisteredEvent) -> None:
 
     await conn.close()
 ```
-Scope is a dot separated string. Each dot constrained name defines a more specif scope that must
-also be specified when emitting an event to enable the execution of the registered scoped listener.
-Scoped events will execute all listeners from the most generic scope (the empty scope) till the
-specified scope.
+Scope namespace is a dot separated string. Each dot constrained name defines a more specific scope
+that must also be specified when emitting an event to enable the execution of the registered scoped
+listener.
+Scoped events will execute all listeners registered to the given scope as well as more generic
+ones. Event type listeners will also be executed as normal.
 ```python
 await emitter.emit(
     UserRegisteredEvent(
@@ -198,68 +190,13 @@ await emitter.emit(
 The call above will execute all 5 listeners that were registered in the event. Being 4 of them
 unscoped (or empty scoped), and the last one scoped under `permission.manager`.
 
-## Namespace
-
-Namespace is functionally equivalent to Scope.
-However instead of defining a list of generic names, Namespace limit the listener execution
-to certain object instances.
-
-A namespaced listener definition requires passing the `namespace` argument to `emitter.on`.
-It's default value is the global namespace, which is the one where all listeners registered under
-it are guarantee to be executed whenever there is any emission of the event they are bounded to.
-```python
-site1_reader, _ = loop.create_connection()
-site2_reader, _ = loop.create_connection()
-
-@emitter.on(str, namespace=site1_reader)
-async def write_data_site_1(event: str) -> None:
-    conn = await asyncpg.connect(
-        host='127.0.0.1'
-        user='user',
-        password='password',
-        database='database',
-    )
-
-    await con.execute(
-        'INSERT INTO data(json) VALUES($1)',
-        event
-    )
-
-    await conn.close()
-
-@emitter.on(str, namespace=site2_reader)
-async def write_data_site_1(event: str) -> None:
-    conn = await asyncpg.connect(
-        host='10.24.0.1'
-        user='user',
-        password='password',
-        database='database',
-    )
-
-    await con.execute(
-        'INSERT INTO data(json) VALUES($1)',
-        event
-    )
-
-    await conn.close()
-
-await emitter.emit(await site1_reader.read(), namespace=site1_reader)
-await emitter.emit(await site2_reader.read(), namespace=site2_reader)
-```
-
-Namespace and scopes can be combined freely.
-
-.. important::
-    `emitter.emit` always execute listeners in the global namespace. After, it executes listeners
-    in local namespaces if any was given to it.
-
 ## Event inheritance
 
 Event inheritance allows specialization of events and their listeners.
 
 Whenever `emitter.emit` is called with an event type instance, it will retrieve all superclasses
-that this instance inherits from, filter them by the ones that have registered unscoped listeners
-and emit their events.
+that this instance inherits from, filter them by the ones that have registered listeners and emit
+their events.
 
 ```python
 from dataclass import dataclass
@@ -294,6 +231,9 @@ emitter.emit(ErrorMetric(name="error", value=1, error=RuntimeError))
 """
 
 
+# Internal
+from sys import version_info
+
 # External
 from importlib_metadata import version
 
@@ -303,7 +243,7 @@ from ._emit import emit
 from ._wait import wait
 from ._types import Listeners, Listenable
 from ._remove import remove
-from ._retrieve import retrieve
+from ._context import context
 
 try:
     __version__: str = version(__name__)
@@ -314,13 +254,18 @@ except Exception:  # pragma: no cover
     warn(f"Failed to set version due to:\n{traceback.format_exc()}", ImportWarning)
     __version__ = "0.0a0"
 
+# Enable asyncio contextvars support in Python 3.6:
+if version_info < (3, 7):
+    import aiocontextvars
+
+    del aiocontextvars
 
 __all__ = (
     "on",
     "wait",
     "emit",
     "remove",
-    "retrieve",
+    "context",
     "Listeners",
     "Listenable",
     "__version__",
