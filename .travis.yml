@@ -15,20 +15,20 @@ matrix:
         - python: '3.6'
         - python: '3.7'
         - python: '3.8'
-            name: 'Mypy, Coverage, Test, Docs'
-            script:
-                - mypy -p emitter
-                - time catchsegv coverage run -m unittest discover -s tests
-                - mkdir -p docs
-                - pdoc3 --html -fo docs emitter
-            after_success:
-                - bash <(curl -s https://codecov.io/bash)
-            deploy:
-                edge: true
-                token: <encrypted token>
-                provider: pages:git
-                local_dir: docs/emitter
-                allow_empty_commit: false
+          name: 'Mypy, Coverage, Test, Docs'
+          script:
+              - mypy -p emitter
+              - time catchsegv coverage run -m unittest discover -s tests
+              - mkdir -p docs
+              - pdoc3 --html -fo docs emitter
+          after_success:
+              - bash <(curl -s https://codecov.io/bash)
+          deploy:
+              edge: true
+              token: <encrypted token>
+              provider: pages:git
+              local_dir: docs/emitter
+              allow_empty_commit: false
         - python: '3.9-dev'
 
 before_install:
