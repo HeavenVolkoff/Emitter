@@ -15,11 +15,12 @@ class context(T.ContextManager["context"]):
 
     For advanced control of listener's life-cycle.
 
-    TODO: Improve, add examples
+    .. TODO::
+        Improve, add examples
     """
 
-    def __init__(self, custom_index: T.Optional[UUID] = None) -> None:
-        self.id: T.Final[UUID] = uuid4() if custom_index is None else custom_index
+    def __init__(self) -> None:
+        self.id: T.Final[UUID] = uuid4()
 
         # Internal
         self._ids: T.Final[T.Set[UUID]] = {self.id}

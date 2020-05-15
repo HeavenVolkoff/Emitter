@@ -3,8 +3,8 @@ import typing as T
 from asyncio import AbstractEventLoop
 
 # Project
+from ..error import ListenerStoppedEventLoopError
 from .._types import ListenerCb
-from ..errors import ListenerStoppedEventLoopError
 
 # Type generics
 K = T.TypeVar("K")

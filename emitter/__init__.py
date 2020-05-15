@@ -9,11 +9,24 @@ import emitter
 .. topics::
     [TOC]
 
+## Namespace
+
+Namespaces are objects that have an `__listeners__` attribute which expose an `emitter.Listeners`
+instance. If the namespace don't have an `__listeners__` attribute, but have writable attributes,
+the lib will attempt to inject one automatically, so that most python objects can be used as
+Namespaces.
+
+```python
+# A bare class can be a namespace
+class GlobalNamespace:
+    pass
+```
+
 ## Events
 
 Events are any [Type Object](https://docs.python.org/3/library/stdtypes.html#type-objects).
-Basically, any class can be an Event.
 
+Basically, most python classes can be an Event:
 ```python
 from typing import NamedTuple
 
@@ -24,32 +37,55 @@ class UserRegisteredEvent(NamedTuple):
     email: str
 ```
 
-... warning:
-    The soles exceptions are bare objects, NoneType, and BaseExceptions.
-    The reason they can't be events is due possible unexpected behaviour by the user.
-    Bare object are too generic and listeners attached to it would run for all fired events, which
-    probably isn't the behaviour expected or wanted by the user.
-    BaseExceptions have special meaning, and the python interpreter normally expects to handle
-    them internally, so trapping them as events wouldn't be advisable.
+.. warning::
+
+    Due to possible unexpected behaviour by the user, the following classes are not accepted as
+    Events
+
+    - `object`:
+
+        Bare object are too generic and listeners attached to it would run for all fired
+        events.
+
+    - `NoneType`:
+
+        NoneType events have very little functionality. However, they are accepted when
+        using together with [Scope](#scope).
+
+    - `BaseException`:
+
+        BaseExceptions have special meaning, and the python interpreter normally expects to
+        handle them internally, so trapping them as events wouldn't be advisable.
+
+    A `ValueError` is raised if one of these classes are used as an Event.
 
 The method `emitter.emit` enables arbitrary event emission.
-It receives a single argument, that is an instance of the event to be emitted and returns a boolean
-indicating whether any listener were executed.
+It receives two positional arguments:
+
+1. An instance of the event to be emitted.
+
+2. An instance of a namespace where the event will be emitted.
+
+It returns a boolean indicating whether this emission resulted in the execution of any listener.
 
 ```python
 listener_executed = await emitter.emit(
     UserRegisteredEvent(
-        69, 'Michael Scott', 'whatshesaid@dundermifflin.com'
-    )
+        1, 'Michael Scott',
+        'thats_what_she_said@dundermifflin.com'
+    ),
+    GlobalNamespace
 )
 
-# listener_executed is False
-# That is because there is no listener registered for this event at the moment
+# listener_executed is False due to there being no listener registered for this
+# event at the moment
 assert not listener_executed
 ```
+
 .. important::
-    `emitter.emit` blocks until it finishes executing all listeners registered for the received
-    event.
+
+    `emitter.emit` returns an `Awaitable[bool]` that blocks until all listeners for the event
+    finishes executing.
 
 ## Listeners
 
@@ -70,7 +106,7 @@ class UserRegistry:
 user_registry = UserRegistry()
 
 # Register listener
-emitter.on(UserRegisteredEvent, user_registry)
+emitter.on(UserRegisteredEvent, GlobalNamespace, user_registry)
 ```
 
 - A lambda as listener:
@@ -79,9 +115,10 @@ emitter.on(UserRegisteredEvent, user_registry)
 # Register listener
 emitter.on(
     UserRegisteredEvent,
+    GlobalNamespace,
     lambda event: print(
-        f"User<id={emitter.id}, name={emitter.name}, email={emitter.email}>"
-         "registered"
+        f"User<id={emitter.id}, name={emitter.name}, email={emitter.email}> "
+        "registered"
     )
 )
 ```
@@ -93,7 +130,7 @@ emitter.on(
 user_registry: T.List[UserRegisteredEvent] = []
 
 # Register listener
-@emitter.on(UserRegisteredEvent)
+@emitter.on(UserRegisteredEvent, GlobalNamespace)
 def register_user(event: UserRegisteredEvent) -> None:
     user_registry.append(event)
 ```
@@ -104,7 +141,7 @@ def register_user(event: UserRegisteredEvent) -> None:
 import asyncpg
 
 # Register listener
-@emitter.on(UserRegisteredEvent)
+@emitter.on(UserRegisteredEvent, GlobalNamespace)
 async def write_user(event: UserRegisteredEvent) -> None:
     conn = await asyncpg.connect(
         host='127.0.0.1'
@@ -122,22 +159,23 @@ async def write_user(event: UserRegisteredEvent) -> None:
 ```
 
 .. important::
+
     The execution of event listeners follows insertion order (restricted to namespace) and waits
     for the completion of any awaitable returned.
 
 ### Special events:
 
-- `emitter.EmitterError`:
+- `emitter.error.EmitterError`:
 
     A generic internal event fired whenever an error occurs while emitting an event. It is an
     Exception subclass.
 
-- `emitter.ListenerEventLoopError`:
+- `emitter.error.ListenerEventLoopError`:
 
     Whenever a listener returned awaitable is bounded to a loop different from the one bounded to
     the listener, `emitter.emit` fires this event. It is an Exception subclass.
 
-- `emitter.ListenerStoppedEventLoopError`
+- `emitter.error.ListenerStoppedEventLoopError`
 
     Whenever `emitter.emit` attempts to execute a listener bounded to a stopped loop, it fires this
     event. It is an Exception subclass.
@@ -148,15 +186,16 @@ async def write_user(event: UserRegisteredEvent) -> None:
     there are no listeners registered to handle an emission of them. In those cases, `emitter.emit`
     call will raise the Exception instance back to the user context that called it.
 
-## Scopes
+## Scope
 
-Scope is a feature that allow emitting events bounded to a namespace, and listening to events given
-a namespace and not an event type.
+Scope is a feature that allow emitting, and listening, events bounded to a name instead of an
+event type.
 
-A scoped listener definition requires passing a scope namespace as argument to `emitter.on`,
-instead of an event type.
+A scoped listener definition requires passing a scope name as argument to `emitter.on` instead
+of an event type.
+
 ```python
-@emitter.on("permission.manager")
+@emitter.on("permission.manager", GlobalNamespace)
 async def write_admin_permission(event: UserRegisteredEvent) -> None:
     conn = await asyncpg.connect(
         host='127.0.0.1'
@@ -172,23 +211,29 @@ async def write_admin_permission(event: UserRegisteredEvent) -> None:
 
     await conn.close()
 ```
-Scope namespace is a dot separated string. Each dot constrained name defines a more specific scope
-that must also be specified when emitting an event to enable the execution of the registered scoped
-listener.
-Scoped events will execute all listeners registered to the given scope as well as more generic
-ones. Event type listeners will also be executed as normal.
+
+Scope names are dot separated strings. Each dot specifies a more specific scope that must also
+be provided when emitting an event so that the registered listener can be executed.
+
+Scoped events will execute all listeners registered to the given scope, following the order from
+most specific to more generic ones. Event type listeners will also be executed as normal.
+
+Scoped event emissions can use `None` when wanting to emit a scoped event not ties to any event
+type.
+
 ```python
 await emitter.emit(
     UserRegisteredEvent(
-        69,
-        'Michael Scott',
-        'whatshesaid@dundermifflin.com'
+        1, 'Michael Scott',
+        'thats_what_she_said@dundermifflin.com'
     ),
+    GlobalNamespace,
     scope="permission.manager"
 )
 ```
-The call above will execute all 5 listeners that were registered in the event. Being 4 of them
-unscoped (or empty scoped), and the last one scoped under `permission.manager`.
+
+The call above will execute all 5 listeners that were registered in the event. Being one of them
+scoped under `permission.manager`, and the other 4 being event type listeners.
 
 ## Event inheritance
 
@@ -214,7 +259,7 @@ class Metric:
     def __hash__(self):
         return hash(self.name)
 
-@emitter.on(Metric)
+@emitter.on(Metric, GlobalNamespace)
 def register_metric(event: Metric):
     metrics.add(event)
 
@@ -222,20 +267,22 @@ def register_metric(event: Metric):
 class ErrorMetric(Metric):
     error: T.Type[Exception]
 
-@emitter.on(Metric)
+@emitter.on(Metric, GlobalNamespace)
 def calculate_total_error(event: ErrorMetric):
     total_error[emitter.error] += 1
 
-emitter.emit(ErrorMetric(name="error", value=1, error=RuntimeError))
+emitter.emit(
+    ErrorMetric(name="error", value=1, error=RuntimeError),
+    GlobalNamespace
+)
 ```
 """
-
 
 # Internal
 from sys import version_info
 
 # External
-from importlib_metadata import version
+from importlib_metadata import version  # type: ignore[import]
 
 # Project
 from ._on import on
@@ -256,7 +303,7 @@ except Exception:  # pragma: no cover
 
 # Enable asyncio contextvars support in Python 3.6:
 if version_info < (3, 7):
-    import aiocontextvars
+    import aiocontextvars  # type: ignore[import]
 
     del aiocontextvars
 

@@ -11,7 +11,7 @@ import asynctest
 
 # External
 import emitter
-from emitter.errors import ListenerEventLoopError, ListenerStoppedEventLoopError
+from emitter.error import ListenerEventLoopError, ListenerStoppedEventLoopError
 
 # Generic types
 K = T.TypeVar("K")
@@ -461,6 +461,43 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
         mock.assert_not_called()
 
         self.assertFalse(await emitter.emit(Event("3"), Global))
+        mock.assert_not_called()
+
+    async def test_once_emit_before_remove(self) -> None:
+        e = Event("0")
+        mock = Mock()
+
+        emitter.on(Event, Global, mock, once=True)
+        emit_task = asyncio.gather(
+            emitter.emit(e, Global),
+            emitter.emit(e, Global),
+            emitter.emit(e, Global),
+            emitter.emit(e, Global),
+            emitter.emit(e, Global),
+        )
+        emitter.remove(None, Global)
+
+        results = await emit_task
+        self.assertIn(True, results)
+        results.remove(True)
+        self.assertListEqual([False, False, False, False], results)
+        mock.assert_called_once_with(e)
+
+    async def test_once_emit_after_remove(self) -> None:
+        mock = Mock()
+
+        emitter.on(Event, Global, mock, once=True)
+        emitter.remove(None, Global)
+
+        e = Event("0")
+        results = await asyncio.gather(
+            emitter.emit(e, Global),
+            emitter.emit(e, Global),
+            emitter.emit(e, Global),
+            emitter.emit(e, Global),
+            emitter.emit(e, Global),
+        )
+        self.assertListEqual([False, False, False, False, False], results)
         mock.assert_not_called()
 
     async def test_once_fail_context(self) -> None:

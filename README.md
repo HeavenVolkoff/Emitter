@@ -4,7 +4,7 @@ Async-aware event emitter for Python
 
 ## Documentation
 
-[Here](./docs)
+[Here](https://github.io/HeavenVolkoff/Emitter)
 
 ## License
 

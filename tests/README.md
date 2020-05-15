@@ -1,2 +1,2 @@
 ## Tests
-> Location of the project's tests
+Location of the project's tests

@@ -37,6 +37,8 @@ class ListenerCb(Te.Protocol[K]):
 
 
 class Listeners:
+    """Data struct for storing listeners in a Namespace."""
+
     __slots__ = ("scope", "types")
 
     def __init__(self) -> None:
@@ -55,6 +57,6 @@ class Listeners:
 
 @Te.runtime_checkable
 class Listenable(Te.Protocol):
-    """A protocol that defines emitter namespaces"""
+    """A protocol that defines emitter namespaces."""
 
     __listeners__: Listeners

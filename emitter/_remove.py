@@ -105,16 +105,22 @@ def remove(
     namespace and context.
 
     Raises:
+
         ValueError: event_type is None, but scope or listener are not.
 
-    Arguments:
+    Args:
+
         event: Define from which event types the listeners will be removed.
+
         listener: Define the listener to be removed.
+
         namespace: Define from which namespace to remove the listener
+
         context: Define context to restrict listener removal
 
     Returns:
-        Whether any listener removal occurred.
+
+        Boolean indicating whether any listener removal occurred.
 
     """
     if context is None:

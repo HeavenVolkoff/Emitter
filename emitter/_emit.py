@@ -8,8 +8,8 @@ from contextvars import Context
 import typing_extensions as Te
 
 # Project
+from .error import ListenerEventLoopError
 from ._types import Listeners, ListenerCb, ListenerOpts
-from .errors import ListenerEventLoopError
 from ._helpers import (
     get_running_loop,
     retrieve_loop_from_listener,
@@ -19,7 +19,9 @@ from ._helpers import (
 # Type generics
 K = T.TypeVar("K", contravariant=True)
 
-_ONCE_EXEC_SENTINEL = object()
+# Constants
+_TO_EXEC_ONCE_IDS: T.Set[int] = set()
+_NOT_EXEC_ONCE_SENTINEL = object()
 
 
 def _exec_listener(
@@ -43,7 +45,7 @@ def _exec_listener(
             )
             return
         except TypeError:  # Listener result isn't an awaitable
-            resolve(None)
+            resolve(T.cast(None, awaitable))
             return
     except Exception as exc:
         reject(exc)
@@ -109,8 +111,9 @@ async def _exec_listeners(
     loop = get_running_loop()
     handled = False
     for listener, (opts, context) in listeners:
+        result = None
         try:
-            await _exec_listener_thread_safe(loop, listener, context, event_instance)
+            result = await _exec_listener_thread_safe(loop, listener, context, event_instance)
         except CancelledError:
             raise
         except Exception as exc:
@@ -134,11 +137,8 @@ async def _exec_listeners(
                 loop.call_exception_handler(
                     {"message": "Unhandled exception during event emission", "exception": exc}
                 )
-
-        handled = (
-            handled
-            or getattr(listener, "_once_unavailable_sentinel", None) is not _ONCE_EXEC_SENTINEL
-        )
+        finally:
+            handled = handled or (result is not _NOT_EXEC_ONCE_SENTINEL)
 
     if not handled and isinstance(event_instance, Exception):
         # When event_instance is an exception, and it is not handled, raise it back to user
@@ -148,31 +148,53 @@ async def _exec_listeners(
     return handled
 
 
+def _wrap_clear_once(
+    listeners: T.MutableMapping[ListenerCb[K], T.Tuple[ListenerOpts, Context]],
+    listener: ListenerCb[K],
+) -> ListenerCb[K]:
+    # Save listener identity to indicate that it still has to be executed
+    _TO_EXEC_ONCE_IDS.add(id(listeners))
+
+    def _clear_once(event: K) -> T.Optional[T.Awaitable[None]]:
+        listener_id = id(listeners)
+        if listener_id in _TO_EXEC_ONCE_IDS:
+            # Listener identity is still present in TO_EXEC, so it was not executed yet.
+            # Remove identity from TO_EXEC to indicate that we will execute this listener.
+            _TO_EXEC_ONCE_IDS.remove(listener_id)
+
+            # Check whether listener is still in listeners mapping.
+            # Even if the execution of the listener still didn't happen it could have been
+            # removed by the user in the interim.
+            if listener in listeners:
+                # Remove the listener from mapping as we are going to execute it
+                del listeners[listener]
+
+            # Exec listener
+            return listener(event)
+
+        # Sentinel to indicate to `_exec_listeners` that this listener wasn't really executed
+        return _NOT_EXEC_ONCE_SENTINEL  # type: ignore[return-value]
+
+    if hasattr(listener, "__loop__"):
+        setattr(_clear_once, "__loop__", getattr(listener, "__loop__"))
+
+    return _clear_once
+
+
 def _handle_once(
     listeners: T.MutableMapping[ListenerCb[K], T.Tuple[ListenerOpts, Context]]
 ) -> T.Iterator[T.Tuple[ListenerCb[K], T.Tuple[ListenerOpts, Context]]]:
-    def _wrap_clear_once(listener: ListenerCb[K]) -> ListenerCb[K]:
-        def _clear_once(event: K) -> T.Optional[T.Awaitable[None]]:
-            if listener not in listeners:
-                setattr(_clear_once, "_once_unavailable_sentinel", _ONCE_EXEC_SENTINEL)
-                return None
-
-            del listeners[listener]
-            return listener(event)
-
-        if hasattr(listener, "__loop__"):
-            setattr(_clear_once, "__loop__", getattr(listener, "__loop__"))
-
-        return _clear_once
-
     return (
-        (_wrap_clear_once(listener) if opts & ListenerOpts.ONCE else listener, (opts, ctx_idx))
+        (
+            _wrap_clear_once(listeners, listener) if opts & ListenerOpts.ONCE else listener,
+            (opts, ctx_idx),
+        )
         for listener, (opts, ctx_idx) in listeners.items()
     )
 
 
 def _retrieve_listeners(
-    listeners: Listeners, event_instance: K, scope: T.Optional[T.Tuple[str, ...]]
+    listeners: Listeners, event_instance: T.Optional[K], scope: T.Optional[T.Tuple[str, ...]]
 ) -> T.Sequence[T.Tuple[ListenerCb[K], T.Tuple[ListenerOpts, Context]]]:
     event_type = type(event_instance)
 
@@ -182,8 +204,8 @@ def _retrieve_listeners(
         # situations.
         raise event_instance
 
-    if not isinstance(event_type, type) or issubclass(event_type, type):
-        # Event type must be a class. Reject Metaclass and cia.
+    if isinstance(event_instance, type) or issubclass(event_type, type):
+        # Event must be an instance. Event type must be a class. Reject Metaclass and cia.
         raise ValueError("Event type must be an instance of type")
 
     if event_type is object:
@@ -241,24 +263,37 @@ def emit(
     no listener for the given event, None.
 
     Listener execution order is as follows:
+
     - Scoped listeners, from more specific ones to more generics. (Only when scope is passed)
+
     - Listener for event type.
+
     - Listener for event super types, from specific super class to generic ones
 
-    Arguments:
+    Args:
+
         event_instance: Event instance to be emitted.
+
         namespace: Specify a listener namespace to emit this event.
+
         loop: Define a loop to execute the listeners.
+
         scope: Define a scope for this event.
 
     Raises:
-        ValueError: event_instance is an instance of a builtin type, or it is a type instead of an
-                    instance.
+
+        ValueError: event_instance is an instance of a builtin type, or it is a type instead of
+                    an instance.
+
         BaseException: Re-raise event instance if it is a BaseException.
+
         CancelledError: Raised whenever the loop (or something) cancels this coroutine.
 
     Returns:
-        Coroutine or awaitable representing the event emission
+
+        [`typing.Coroutine[None]`](https://docs.python.org/3/library/typing.html#callable) or
+        [`typing.Awaitable[None]`](https://docs.python.org/3/library/typing.html#typing.Awaitable)
+        representing the event emission.
 
     """
     namespace_listeners = _retrieve_listeners(

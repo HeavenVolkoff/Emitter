@@ -18,11 +18,14 @@ async def wait(event: T.Union[str, T.Type[K]], namespace: object) -> K:
     """This is a helper function that awaits for the first execution of a given
     event or scope namespace and return its value.
 
-    Arguments:
+    Args:
+
         event: Event type or scope namespace.
+
         namespace: Specify the namespace in which to wait for the event emission.
 
     Returns:
+
         Emitted event instance.
 
     """

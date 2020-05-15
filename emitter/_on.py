@@ -86,24 +86,34 @@ def on(
     Context can't be specified when using this function in decorator mode.
     Context can't be specified when passing once=True.
 
-    Arguments:
+    Args:
+
         event: Specify which event type or scope namespace will trigger this listener execution.
+
         namespace: Specify the namespace in which the listener will be attached.
+
         listener: Callable to be executed when there is an emission of the given event.
+
         once: Define whether the given listener is to be removed after it's first execution.
+
         loop: Specify a loop to bound to the given listener and ensure it is always executed in the
               correct context. (Default: Current running loop for coroutines functions, None for
               any other callable)
+
         context: Return a context for management of this listener lifecycle.
+
         raise_on_exc: Whether an untreated exception raised by this listener will make an event
                       emission to fail.
 
     Raises:
+
         TypeError: Failed to bound loop to listener.
+
         ValueError: event_type is not a type instance, or it is a builtin type, or it is
                     BaseExceptions or listener is not callable.
 
     Returns:
+
         If listener isn't provided, this method returns a function that takes a Callable as a \
         single argument. As such it can be used as a decorator. In both the decorated and \
         undecorated forms this function returns the given event listener.
@@ -135,7 +145,8 @@ def on(
         if issubclass(event, BaseException) and not issubclass(event, Exception):
             raise ValueError("Event type can't be a BaseException")
 
-        if not isinstance(event, type) or issubclass(event, type):
+        if issubclass(event, type):
+            # Event type must be a class. Reject Metaclass and cia.
             raise ValueError("Event type must be an instance of type")
 
         scope = None
