@@ -1,4 +1,4 @@
-sudo: false
+os: linux
 dist: bionic
 cache:
     pip: true
@@ -9,7 +9,7 @@ branches:
 notifications:
     email: false
 
-matrix:
+jobs:
     fast_finish: true
     include:
         - python: '3.6'
@@ -26,11 +26,10 @@ matrix:
           after_success:
               - bash <(curl -s https://codecov.io/bash)
           deploy:
-              edge: true
-              token: <encrypted token>
               provider: pages:git
               local_dir: docs/emitter
               allow_empty_commit: false
+              edge: true
         - python: '3.9-dev'
 
 before_install:
