@@ -1,0 +1,1287 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
+<meta name="generator" content="pdoc 0.8.1" />
+<title>emitter API documentation</title>
+<meta name="description" content="Async-aware event emitter that enables
+[event-driven programming](https://en.wikipedia.org/wiki/Event-driven_programming) by providing the
+basic …" />
+<link href='https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.0/normalize.min.css' rel='stylesheet'>
+<link href='https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/8.0.0/sanitize.min.css' rel='stylesheet'>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/github.min.css" rel="stylesheet">
+<style>.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:30px;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:1em 0 .50em 0}h3{font-size:1.4em;margin:25px 0 10px 0}h4{margin:0;font-size:105%}a{color:#058;text-decoration:none;transition:color .3s ease-in-out}a:hover{color:#e82}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900}pre code{background:#f8f8f8;font-size:.8em;line-height:1.4em}code{background:#f2f2f1;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{background:#f8f8f8;border:0;border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0;padding:1ex}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-weight:bold;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}.admonition{padding:.1em .5em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.item .name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul{padding-left:1.5em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Package <code>emitter</code></h1>
+</header>
+<section id="section-intro">
+<p>Async-aware event emitter that enables
+<a href="https://en.wikipedia.org/wiki/Event-driven_programming">event-driven programming</a> by providing the
+basic interface needed for emitting events and registering listeners.</p>
+<pre><code class="python">import emitter
+</code></pre>
+<div class="admonition topics">
+<p class="admonition-title">Topics</p>
+<div class="toc">
+<ul>
+<li><a href="#namespace">Namespace</a></li>
+<li><a href="#events">Events</a></li>
+<li><a href="#listeners">Listeners</a><ul>
+<li><a href="#special-events">Special events:</a></li>
+</ul>
+</li>
+<li><a href="#scope">Scope</a></li>
+<li><a href="#event-inheritance">Event inheritance</a></li>
+</ul>
+</div>
+</div>
+<h2 id="namespace">Namespace</h2>
+<p>Namespaces are objects that have an <code>__listeners__</code> attribute which expose an <code><a title="emitter.Listeners" href="#emitter.Listeners">Listeners</a></code>
+instance. If the namespace don't have an <code>__listeners__</code> attribute, but have writable attributes,
+the lib will attempt to inject one automatically, so that most python objects can be used as
+Namespaces.</p>
+<pre><code class="python"># A bare class can be a namespace
+class GlobalNamespace:
+    pass
+</code></pre>
+<h2 id="events">Events</h2>
+<p>Events are any <a href="https://docs.python.org/3/library/stdtypes.html#type-objects">Type Object</a>.</p>
+<p>Basically, most python classes can be an Event:</p>
+<pre><code class="python">from typing import NamedTuple
+
+# An event
+class UserRegisteredEvent(NamedTuple):
+    id: int
+    name: str
+    email: str
+</code></pre>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Due to possible unexpected behaviour by the user, the following classes are not accepted as
+Events</p>
+<ul>
+<li>
+<p><code>object</code>:</p>
+<p>Bare object are too generic and listeners attached to it would run for all fired
+events.</p>
+</li>
+<li>
+<p><code>NoneType</code>:</p>
+<p>NoneType events have very little functionality. However, they are accepted when
+using together with <a href="#scope">Scope</a>.</p>
+</li>
+<li>
+<p><code>BaseException</code>:</p>
+<p>BaseExceptions have special meaning, and the python interpreter normally expects to
+handle them internally, so trapping them as events wouldn't be advisable.</p>
+</li>
+</ul>
+<p>A <code>ValueError</code> is raised if one of these classes are used as an Event.</p>
+</div>
+<p>The method <code><a title="emitter.emit" href="#emitter.emit">emit()</a></code> enables arbitrary event emission.
+It receives two positional arguments:</p>
+<ol>
+<li>
+<p>An instance of the event to be emitted.</p>
+</li>
+<li>
+<p>An instance of a namespace where the event will be emitted.</p>
+</li>
+</ol>
+<p>It returns a boolean indicating whether this emission resulted in the execution of any listener.</p>
+<pre><code class="python">listener_executed = await emitter.emit(
+    UserRegisteredEvent(
+        1, 'Michael Scott',
+        'thats_what_she_said@dundermifflin.com'
+    ),
+    GlobalNamespace
+)
+
+# listener_executed is False due to there being no listener registered for this
+# event at the moment
+assert not listener_executed
+</code></pre>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p><code><a title="emitter.emit" href="#emitter.emit">emit()</a></code> returns an <code>Awaitable[bool]</code> that blocks until all listeners for the event
+finishes executing.</p>
+</div>
+<h2 id="listeners">Listeners</h2>
+<p>Listeners are any callable that receives a single argument (an instance of the event type) and
+returns <code>None</code> or <code>Awaitable[None]</code>.
+A listener can be registered for an event via <code><a title="emitter.on" href="#emitter.on">on()</a></code>.</p>
+<ul>
+<li>A callable object as listener:</li>
+</ul>
+<pre><code class="python">class UserRegistry:
+    def __init__() -&gt; None:
+        self.registry: T.List[UserRegisteredEvent] = []
+
+    def __call__(event: UserRegisteredEvent) -&gt; None:
+        self.registry.append(event)
+
+user_registry = UserRegistry()
+
+# Register listener
+emitter.on(UserRegisteredEvent, GlobalNamespace, user_registry)
+</code></pre>
+<ul>
+<li>A lambda as listener:</li>
+</ul>
+<pre><code class="python"># Register listener
+emitter.on(
+    UserRegisteredEvent,
+    GlobalNamespace,
+    lambda event: print(
+        f&quot;User&lt;id={emitter.id}, name={emitter.name}, email={emitter.email}&gt; &quot;
+        &quot;registered&quot;
+    )
+)
+</code></pre>
+<ul>
+<li>A function as listener:</li>
+</ul>
+<pre><code class="python"># Another approach to example 1
+user_registry: T.List[UserRegisteredEvent] = []
+
+# Register listener
+@emitter.on(UserRegisteredEvent, GlobalNamespace)
+def register_user(event: UserRegisteredEvent) -&gt; None:
+    user_registry.append(event)
+</code></pre>
+<ul>
+<li>An asynchronous function as listener:</li>
+</ul>
+<pre><code class="python">import asyncpg
+
+# Register listener
+@emitter.on(UserRegisteredEvent, GlobalNamespace)
+async def write_user(event: UserRegisteredEvent) -&gt; None:
+    conn = await asyncpg.connect(
+        host='127.0.0.1'
+        user='user',
+        password='password',
+        database='database',
+    )
+
+    await conn.execute(
+        'INSERT INTO users(id, name, email) VALUES($1, $2, $3)',
+        emitter.id, emitter.name, emitter.email
+    )
+
+    await conn.close()
+</code></pre>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>The execution of event listeners follows insertion order (restricted to namespace) and waits
+for the completion of any awaitable returned.</p>
+</div>
+<h3 id="special-events">Special events:</h3>
+<ul>
+<li>
+<p><code><a title="emitter.error.EmitterError" href="error.html#emitter.error.EmitterError">EmitterError</a></code>:</p>
+<p>A generic internal event fired whenever an error occurs while emitting an event. It is an
+Exception subclass.</p>
+</li>
+<li>
+<p><code><a title="emitter.error.ListenerEventLoopError" href="error.html#emitter.error.ListenerEventLoopError">ListenerEventLoopError</a></code>:</p>
+<p>Whenever a listener returned awaitable is bounded to a loop different from the one bounded to
+the listener, <code><a title="emitter.emit" href="#emitter.emit">emit()</a></code> fires this event. It is an Exception subclass.</p>
+</li>
+<li>
+<p><code><a title="emitter.error.ListenerStoppedEventLoopError" href="error.html#emitter.error.ListenerStoppedEventLoopError">ListenerStoppedEventLoopError</a></code></p>
+<p>Whenever <code><a title="emitter.emit" href="#emitter.emit">emit()</a></code> attempts to execute a listener bounded to a stopped loop, it fires this
+event. It is an Exception subclass.</p>
+</li>
+<li>
+<p><code>Exception</code> and it's subclasses:</p>
+<p>Their behaviour is equivalent to any other event type, with the sole difference being when
+there are no listeners registered to handle an emission of them. In those cases, <code><a title="emitter.emit" href="#emitter.emit">emit()</a></code>
+call will raise the Exception instance back to the user context that called it.</p>
+</li>
+</ul>
+<h2 id="scope">Scope</h2>
+<p>Scope is a feature that allow emitting, and listening, events bounded to a name instead of an
+event type.</p>
+<p>A scoped listener definition requires passing a scope name as argument to <code><a title="emitter.on" href="#emitter.on">on()</a></code> instead
+of an event type.</p>
+<pre><code class="python">@emitter.on(&quot;permission.manager&quot;, GlobalNamespace)
+async def write_admin_permission(event: UserRegisteredEvent) -&gt; None:
+    conn = await asyncpg.connect(
+        host='127.0.0.1'
+        user='user',
+        password='password',
+        database='database',
+    )
+
+    await con.execute(
+        'UPDATE users SET admin=$2 WHERE id=$1',
+        emitter.id, True
+    )
+
+    await conn.close()
+</code></pre>
+<p>Scope names are dot separated strings. Each dot specifies a more specific scope that must also
+be provided when emitting an event so that the registered listener can be executed.</p>
+<p>Scoped events will execute all listeners registered to the given scope, following the order from
+most specific to more generic ones. Event type listeners will also be executed as normal.</p>
+<p>Scoped event emissions can use <code>None</code> when wanting to emit a scoped event not ties to any event
+type.</p>
+<pre><code class="python">await emitter.emit(
+    UserRegisteredEvent(
+        1, 'Michael Scott',
+        'thats_what_she_said@dundermifflin.com'
+    ),
+    GlobalNamespace,
+    scope=&quot;permission.manager&quot;
+)
+</code></pre>
+<p>The call above will execute all 5 listeners that were registered in the event. Being one of them
+scoped under <code>permission.manager</code>, and the other 4 being event type listeners.</p>
+<h2 id="event-inheritance">Event inheritance</h2>
+<p>Event inheritance allows specialization of events and their listeners.</p>
+<p>Whenever <code><a title="emitter.emit" href="#emitter.emit">emit()</a></code> is called with an event type instance, it will retrieve all superclasses
+that this instance inherits from, filter them by the ones that have registered listeners and emit
+their events.</p>
+<pre><code class="python">from dataclass import dataclass
+from collections import Counter
+import event
+
+metrics = set()
+total_error = Counter()
+
+@dataclass
+class Metric:
+    name: str
+    value: int
+
+    def __hash__(self):
+        return hash(self.name)
+
+@emitter.on(Metric, GlobalNamespace)
+def register_metric(event: Metric):
+    metrics.add(event)
+
+@dataclass
+class ErrorMetric(Metric):
+    error: T.Type[Exception]
+
+@emitter.on(Metric, GlobalNamespace)
+def calculate_total_error(event: ErrorMetric):
+    total_error[emitter.error] += 1
+
+emitter.emit(
+    ErrorMetric(name=&quot;error&quot;, value=1, error=RuntimeError),
+    GlobalNamespace
+)
+</code></pre>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">&#34;&#34;&#34;Async-aware event emitter that enables
+[event-driven programming](https://en.wikipedia.org/wiki/Event-driven_programming) by providing the
+basic interface needed for emitting events and registering listeners.
+
+```python
+import emitter
+```
+
+.. topics::
+    [TOC]
+
+## Namespace
+
+Namespaces are objects that have an `__listeners__` attribute which expose an `emitter.Listeners`
+instance. If the namespace don&#39;t have an `__listeners__` attribute, but have writable attributes,
+the lib will attempt to inject one automatically, so that most python objects can be used as
+Namespaces.
+
+```python
+# A bare class can be a namespace
+class GlobalNamespace:
+    pass
+```
+
+## Events
+
+Events are any [Type Object](https://docs.python.org/3/library/stdtypes.html#type-objects).
+
+Basically, most python classes can be an Event:
+```python
+from typing import NamedTuple
+
+# An event
+class UserRegisteredEvent(NamedTuple):
+    id: int
+    name: str
+    email: str
+```
+
+.. warning::
+
+    Due to possible unexpected behaviour by the user, the following classes are not accepted as
+    Events
+
+    - `object`:
+
+        Bare object are too generic and listeners attached to it would run for all fired
+        events.
+
+    - `NoneType`:
+
+        NoneType events have very little functionality. However, they are accepted when
+        using together with [Scope](#scope).
+
+    - `BaseException`:
+
+        BaseExceptions have special meaning, and the python interpreter normally expects to
+        handle them internally, so trapping them as events wouldn&#39;t be advisable.
+
+    A `ValueError` is raised if one of these classes are used as an Event.
+
+The method `emitter.emit` enables arbitrary event emission.
+It receives two positional arguments:
+
+1. An instance of the event to be emitted.
+
+2. An instance of a namespace where the event will be emitted.
+
+It returns a boolean indicating whether this emission resulted in the execution of any listener.
+
+```python
+listener_executed = await emitter.emit(
+    UserRegisteredEvent(
+        1, &#39;Michael Scott&#39;,
+        &#39;thats_what_she_said@dundermifflin.com&#39;
+    ),
+    GlobalNamespace
+)
+
+# listener_executed is False due to there being no listener registered for this
+# event at the moment
+assert not listener_executed
+```
+
+.. important::
+
+    `emitter.emit` returns an `Awaitable[bool]` that blocks until all listeners for the event
+    finishes executing.
+
+## Listeners
+
+Listeners are any callable that receives a single argument (an instance of the event type) and
+returns `None` or `Awaitable[None]`.
+A listener can be registered for an event via `emitter.on`.
+
+- A callable object as listener:
+
+```python
+class UserRegistry:
+    def __init__() -&gt; None:
+        self.registry: T.List[UserRegisteredEvent] = []
+
+    def __call__(event: UserRegisteredEvent) -&gt; None:
+        self.registry.append(event)
+
+user_registry = UserRegistry()
+
+# Register listener
+emitter.on(UserRegisteredEvent, GlobalNamespace, user_registry)
+```
+
+- A lambda as listener:
+
+```python
+# Register listener
+emitter.on(
+    UserRegisteredEvent,
+    GlobalNamespace,
+    lambda event: print(
+        f&#34;User&lt;id={emitter.id}, name={emitter.name}, email={emitter.email}&gt; &#34;
+        &#34;registered&#34;
+    )
+)
+```
+
+- A function as listener:
+
+```python
+# Another approach to example 1
+user_registry: T.List[UserRegisteredEvent] = []
+
+# Register listener
+@emitter.on(UserRegisteredEvent, GlobalNamespace)
+def register_user(event: UserRegisteredEvent) -&gt; None:
+    user_registry.append(event)
+```
+
+- An asynchronous function as listener:
+
+```python
+import asyncpg
+
+# Register listener
+@emitter.on(UserRegisteredEvent, GlobalNamespace)
+async def write_user(event: UserRegisteredEvent) -&gt; None:
+    conn = await asyncpg.connect(
+        host=&#39;127.0.0.1&#39;
+        user=&#39;user&#39;,
+        password=&#39;password&#39;,
+        database=&#39;database&#39;,
+    )
+
+    await conn.execute(
+        &#39;INSERT INTO users(id, name, email) VALUES($1, $2, $3)&#39;,
+        emitter.id, emitter.name, emitter.email
+    )
+
+    await conn.close()
+```
+
+.. important::
+
+    The execution of event listeners follows insertion order (restricted to namespace) and waits
+    for the completion of any awaitable returned.
+
+### Special events:
+
+- `emitter.error.EmitterError`:
+
+    A generic internal event fired whenever an error occurs while emitting an event. It is an
+    Exception subclass.
+
+- `emitter.error.ListenerEventLoopError`:
+
+    Whenever a listener returned awaitable is bounded to a loop different from the one bounded to
+    the listener, `emitter.emit` fires this event. It is an Exception subclass.
+
+- `emitter.error.ListenerStoppedEventLoopError`
+
+    Whenever `emitter.emit` attempts to execute a listener bounded to a stopped loop, it fires this
+    event. It is an Exception subclass.
+
+- `Exception` and it&#39;s subclasses:
+
+    Their behaviour is equivalent to any other event type, with the sole difference being when
+    there are no listeners registered to handle an emission of them. In those cases, `emitter.emit`
+    call will raise the Exception instance back to the user context that called it.
+
+## Scope
+
+Scope is a feature that allow emitting, and listening, events bounded to a name instead of an
+event type.
+
+A scoped listener definition requires passing a scope name as argument to `emitter.on` instead
+of an event type.
+
+```python
+@emitter.on(&#34;permission.manager&#34;, GlobalNamespace)
+async def write_admin_permission(event: UserRegisteredEvent) -&gt; None:
+    conn = await asyncpg.connect(
+        host=&#39;127.0.0.1&#39;
+        user=&#39;user&#39;,
+        password=&#39;password&#39;,
+        database=&#39;database&#39;,
+    )
+
+    await con.execute(
+        &#39;UPDATE users SET admin=$2 WHERE id=$1&#39;,
+        emitter.id, True
+    )
+
+    await conn.close()
+```
+
+Scope names are dot separated strings. Each dot specifies a more specific scope that must also
+be provided when emitting an event so that the registered listener can be executed.
+
+Scoped events will execute all listeners registered to the given scope, following the order from
+most specific to more generic ones. Event type listeners will also be executed as normal.
+
+Scoped event emissions can use `None` when wanting to emit a scoped event not ties to any event
+type.
+
+```python
+await emitter.emit(
+    UserRegisteredEvent(
+        1, &#39;Michael Scott&#39;,
+        &#39;thats_what_she_said@dundermifflin.com&#39;
+    ),
+    GlobalNamespace,
+    scope=&#34;permission.manager&#34;
+)
+```
+
+The call above will execute all 5 listeners that were registered in the event. Being one of them
+scoped under `permission.manager`, and the other 4 being event type listeners.
+
+## Event inheritance
+
+Event inheritance allows specialization of events and their listeners.
+
+Whenever `emitter.emit` is called with an event type instance, it will retrieve all superclasses
+that this instance inherits from, filter them by the ones that have registered listeners and emit
+their events.
+
+```python
+from dataclass import dataclass
+from collections import Counter
+import event
+
+metrics = set()
+total_error = Counter()
+
+@dataclass
+class Metric:
+    name: str
+    value: int
+
+    def __hash__(self):
+        return hash(self.name)
+
+@emitter.on(Metric, GlobalNamespace)
+def register_metric(event: Metric):
+    metrics.add(event)
+
+@dataclass
+class ErrorMetric(Metric):
+    error: T.Type[Exception]
+
+@emitter.on(Metric, GlobalNamespace)
+def calculate_total_error(event: ErrorMetric):
+    total_error[emitter.error] += 1
+
+emitter.emit(
+    ErrorMetric(name=&#34;error&#34;, value=1, error=RuntimeError),
+    GlobalNamespace
+)
+```
+&#34;&#34;&#34;
+
+# Internal
+from sys import version_info
+
+# External
+from importlib_metadata import version  # type: ignore[import]
+
+# Project
+from ._on import on
+from ._emit import emit
+from ._wait import wait
+from ._types import Listeners, Listenable
+from ._remove import remove
+from ._context import context
+
+try:
+    __version__: str = version(__name__)
+except Exception:  # pragma: no cover
+    import traceback
+    from warnings import warn
+
+    warn(f&#34;Failed to set version due to:\n{traceback.format_exc()}&#34;, ImportWarning)
+    __version__ = &#34;0.0a0&#34;
+
+# Enable asyncio contextvars support in Python 3.6:
+if version_info &lt; (3, 7):
+    import aiocontextvars  # type: ignore[import]
+
+    del aiocontextvars
+
+__all__ = (
+    &#34;on&#34;,
+    &#34;wait&#34;,
+    &#34;emit&#34;,
+    &#34;remove&#34;,
+    &#34;context&#34;,
+    &#34;Listeners&#34;,
+    &#34;Listenable&#34;,
+    &#34;__version__&#34;,
+)</code></pre>
+</details>
+</section>
+<section>
+<h2 class="section-title" id="header-submodules">Sub-modules</h2>
+<dl>
+<dt><code class="name"><a title="emitter.error" href="error.html">emitter.error</a></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+</dl>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-functions">Functions</h2>
+<dl>
+<dt id="emitter.emit"><code class="name flex">
+<span>def <span class="ident">emit</span></span>(<span>event_instance: object, namespace: object, *, loop: Union[asyncio.events.AbstractEventLoop, NoneType] = None, scope: str = '') -> Union[NoneType, ForwardRef('Task[bool]'), Coroutine[NoneType, NoneType, bool]]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Emit an event, and execute its listeners.</p>
+<p>When called without a defined loop argument this function always returns a coroutine.</p>
+<p>When called with a defined loop argument this function may return a Task or, when there is
+no listener for the given event, None.</p>
+<p>Listener execution order is as follows:</p>
+<ul>
+<li>
+<p>Scoped listeners, from more specific ones to more generics. (Only when scope is passed)</p>
+</li>
+<li>
+<p>Listener for event type.</p>
+</li>
+<li>
+<p>Listener for event super types, from specific super class to generic ones</p>
+</li>
+</ul>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>event_instance</code></strong></dt>
+<dd>Event instance to be emitted.</dd>
+<dt><strong><code>namespace</code></strong></dt>
+<dd>Specify a listener namespace to emit this event.</dd>
+<dt><strong><code>loop</code></strong></dt>
+<dd>Define a loop to execute the listeners.</dd>
+<dt><strong><code>scope</code></strong></dt>
+<dd>Define a scope for this event.</dd>
+</dl>
+<h2 id="raises">Raises</h2>
+<dl>
+<dt><code>ValueError</code></dt>
+<dd>event_instance is an instance of a builtin type, or it is a type instead of
+an instance.</dd>
+<dt><code>BaseException</code></dt>
+<dd>Re-raise event instance if it is a BaseException.</dd>
+<dt><code>CancelledError</code></dt>
+<dd>Raised whenever the loop (or something) cancels this coroutine.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<p><a href="https://docs.python.org/3/library/typing.html#callable"><code>typing.Coroutine[None]</code></a> or
+<a href="https://docs.python.org/3/library/typing.html#typing.Awaitable"><code>typing.Awaitable[None]</code></a>
+representing the event emission.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def emit(
+    event_instance: object,
+    namespace: object,
+    *,
+    loop: T.Optional[AbstractEventLoop] = None,
+    scope: str = &#34;&#34;,
+) -&gt; T.Union[None, &#34;Task[bool]&#34;, T.Coroutine[None, None, bool]]:
+    &#34;&#34;&#34;Emit an event, and execute its listeners.
+
+    When called without a defined loop argument this function always returns a coroutine.
+
+    When called with a defined loop argument this function may return a Task or, when there is
+    no listener for the given event, None.
+
+    Listener execution order is as follows:
+
+    - Scoped listeners, from more specific ones to more generics. (Only when scope is passed)
+
+    - Listener for event type.
+
+    - Listener for event super types, from specific super class to generic ones
+
+    Args:
+
+        event_instance: Event instance to be emitted.
+
+        namespace: Specify a listener namespace to emit this event.
+
+        loop: Define a loop to execute the listeners.
+
+        scope: Define a scope for this event.
+
+    Raises:
+
+        ValueError: event_instance is an instance of a builtin type, or it is a type instead of
+                    an instance.
+
+        BaseException: Re-raise event instance if it is a BaseException.
+
+        CancelledError: Raised whenever the loop (or something) cancels this coroutine.
+
+    Returns:
+
+        [`typing.Coroutine[None]`](https://docs.python.org/3/library/typing.html#callable) or
+        [`typing.Awaitable[None]`](https://docs.python.org/3/library/typing.html#typing.Awaitable)
+        representing the event emission.
+
+    &#34;&#34;&#34;
+    namespace_listeners = _retrieve_listeners(
+        retrieve_listeners_from_namespace(namespace),
+        event_instance,
+        tuple(scope.split(&#34;.&#34;)) if scope else None,
+    )
+
+    coro = _exec_listeners(namespace_listeners, event_instance)
+
+    if loop is None:
+        return coro
+
+    if namespace:
+        return loop.create_task(coro)
+
+    return None</code></pre>
+</details>
+</dd>
+<dt id="emitter.on"><code class="name flex">
+<span>def <span class="ident">on</span></span>(<span>event: Union[str, Type[~K]], namespace: object, listener: Union[emitter._types.ListenerCb[~K], NoneType] = None, *, once: bool = False, loop: Union[asyncio.events.AbstractEventLoop, NoneType] = None, context: bool = False, raise_on_exc: bool = False) -> Union[emitter._types.ListenerCb[~K], AbstractContextManager[NoneType], Callable[[emitter._types.ListenerCb[~K]], emitter._types.ListenerCb[~K]]]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Add a listener to event type.</p>
+<p>Context can't be specified when using this function in decorator mode.
+Context can't be specified when passing once=True.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>event</code></strong></dt>
+<dd>Specify which event type or scope namespace will trigger this listener execution.</dd>
+<dt><strong><code>namespace</code></strong></dt>
+<dd>Specify the namespace in which the listener will be attached.</dd>
+<dt><strong><code>listener</code></strong></dt>
+<dd>Callable to be executed when there is an emission of the given event.</dd>
+<dt><strong><code>once</code></strong></dt>
+<dd>Define whether the given listener is to be removed after it's first execution.</dd>
+<dt><strong><code>loop</code></strong></dt>
+<dd>Specify a loop to bound to the given listener and ensure it is always executed in the
+correct context. (Default: Current running loop for coroutines functions, None for
+any other callable)</dd>
+<dt><strong><code>context</code></strong></dt>
+<dd>Return a context for management of this listener lifecycle.</dd>
+<dt><strong><code>raise_on_exc</code></strong></dt>
+<dd>Whether an untreated exception raised by this listener will make an event
+emission to fail.</dd>
+</dl>
+<h2 id="raises">Raises</h2>
+<dl>
+<dt><code>TypeError</code></dt>
+<dd>Failed to bound loop to listener.</dd>
+<dt><code>ValueError</code></dt>
+<dd>event_type is not a type instance, or it is a builtin type, or it is
+BaseExceptions or listener is not callable.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<p>If listener isn't provided, this method returns a function that takes a Callable as a
+single argument. As such it can be used as a decorator. In both the decorated and
+undecorated forms this function returns the given event listener.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def on(
+    event: T.Union[str, T.Type[K]],
+    namespace: object,
+    listener: T.Optional[ListenerCb[K]] = None,
+    *,
+    once: bool = False,
+    loop: T.Optional[AbstractEventLoop] = None,
+    context: bool = False,
+    raise_on_exc: bool = False,
+) -&gt; T.Union[ListenerCb[K], T.ContextManager[None], T.Callable[[ListenerCb[K]], ListenerCb[K]]]:
+    &#34;&#34;&#34;Add a listener to event type.
+
+    Context can&#39;t be specified when using this function in decorator mode.
+    Context can&#39;t be specified when passing once=True.
+
+    Args:
+
+        event: Specify which event type or scope namespace will trigger this listener execution.
+
+        namespace: Specify the namespace in which the listener will be attached.
+
+        listener: Callable to be executed when there is an emission of the given event.
+
+        once: Define whether the given listener is to be removed after it&#39;s first execution.
+
+        loop: Specify a loop to bound to the given listener and ensure it is always executed in the
+              correct context. (Default: Current running loop for coroutines functions, None for
+              any other callable)
+
+        context: Return a context for management of this listener lifecycle.
+
+        raise_on_exc: Whether an untreated exception raised by this listener will make an event
+                      emission to fail.
+
+    Raises:
+
+        TypeError: Failed to bound loop to listener.
+
+        ValueError: event_type is not a type instance, or it is a builtin type, or it is
+                    BaseExceptions or listener is not callable.
+
+    Returns:
+
+        If listener isn&#39;t provided, this method returns a function that takes a Callable as a \
+        single argument. As such it can be used as a decorator. In both the decorated and \
+        undecorated forms this function returns the given event listener.
+
+    &#34;&#34;&#34;
+    if listener is None:
+        if context:
+            raise ValueError(&#34;Can&#39;t use context manager without a listener defined&#34;)
+        # Decorator behaviour
+        return lambda cb: on(event, namespace, cb, once=once, loop=loop, raise_on_exc=raise_on_exc)
+
+    if context:
+        if once:
+            raise ValueError(&#34;Can&#39;t use context manager with a once listener&#34;)
+        return _context(event, namespace, listener, raise_on_exc=raise_on_exc)
+
+    if event is None:
+        raise ValueError(&#34;Event type can&#39;t be NoneType&#34;)
+
+    if event is object:
+        raise ValueError(&#34;Event type can&#39;t be object, too generic&#34;)
+
+    if isinstance(event, str):
+        if event == &#34;&#34;:
+            raise ValueError(&#34;Event scope must be a valid string&#34;)
+
+        scope: T.Optional[T.Tuple[str, ...]] = tuple(event.split(&#34;.&#34;))
+    else:
+        if issubclass(event, BaseException) and not issubclass(event, Exception):
+            raise ValueError(&#34;Event type can&#39;t be a BaseException&#34;)
+
+        if issubclass(event, type):
+            # Event type must be a class. Reject Metaclass and cia.
+            raise ValueError(&#34;Event type must be an instance of type&#34;)
+
+        scope = None
+
+    if not callable(listener):
+        raise ValueError(&#34;Listener must be callable&#34;)
+
+    # Define listeners options
+    opts = ListenerOpts.NOP
+    if once:
+        opts |= ListenerOpts.ONCE
+    if raise_on_exc:
+        opts |= ListenerOpts.RAISE
+
+    if loop is None and iscoroutinefunction(listener):
+        # Automatically set loop for Coroutines to avoid problems with emission from another thread
+        try:
+            loop = get_running_loop()
+        except RuntimeError:
+            loop = None
+
+    if loop:
+        listener = bound_loop_to_listener(listener, loop)
+
+    # Group listener&#39;s opts and context
+    listener_info = (opts, copy_context())
+
+    # Retrieve listeners
+    listeners = retrieve_listeners_from_namespace(namespace)
+
+    # Add the given listener to the correct queue
+    if scope:
+        listeners.scope[scope][listener] = listener_info
+    else:
+        assert isinstance(event, type)
+        listeners.types[event][listener] = listener_info
+
+    return listener</code></pre>
+</details>
+</dd>
+<dt id="emitter.remove"><code class="name flex">
+<span>def <span class="ident">remove</span></span>(<span>event: Union[str, NoneType, Type[~K]], namespace: object, listener: Union[emitter._types.ListenerCb[~K], NoneType] = None, context: Union[emitter._context.context, NoneType] = None) -> bool</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Remove listeners, limited by scope, from given event type.</p>
+<p>When no context is provided assumes current context.</p>
+<p>When no event_type and no listener are passed removes all listeners from the given namespace
+and context.</p>
+<p>When no event_type is specified but a listener is given removes all references to the listener,
+whetever scoped or typed, from the given namespace and context.</p>
+<p>When both event and listener are specified, remove only the correspondent match from the given
+namespace and context.</p>
+<h2 id="raises">Raises</h2>
+<dl>
+<dt><code>ValueError</code></dt>
+<dd>event_type is None, but scope or listener are not.</dd>
+</dl>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>event</code></strong></dt>
+<dd>Define from which event types the listeners will be removed.</dd>
+<dt><strong><code>listener</code></strong></dt>
+<dd>Define the listener to be removed.</dd>
+<dt><strong><code>namespace</code></strong></dt>
+<dd>Define from which namespace to remove the listener</dd>
+<dt><strong><code>context</code></strong></dt>
+<dd>Define context to restrict listener removal</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<p>Boolean indicating whether any listener removal occurred.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def remove(
+    event: T.Union[str, None, T.Type[K]],
+    namespace: object,
+    listener: T.Optional[ListenerCb[K]] = None,
+    context: T.Optional[emitter_context] = None,
+) -&gt; bool:
+    &#34;&#34;&#34;Remove listeners, limited by scope, from given event type.
+
+    When no context is provided assumes current context.
+
+    When no event_type and no listener are passed removes all listeners from the given namespace
+    and context.
+
+    When no event_type is specified but a listener is given removes all references to the listener,
+    whetever scoped or typed, from the given namespace and context.
+
+    When both event and listener are specified, remove only the correspondent match from the given
+    namespace and context.
+
+    Raises:
+
+        ValueError: event_type is None, but scope or listener are not.
+
+    Args:
+
+        event: Define from which event types the listeners will be removed.
+
+        listener: Define the listener to be removed.
+
+        namespace: Define from which namespace to remove the listener
+
+        context: Define context to restrict listener removal
+
+    Returns:
+
+        Boolean indicating whether any listener removal occurred.
+
+    &#34;&#34;&#34;
+    if context is None:
+        context = CONTEXT.get()
+
+    listeners = retrieve_listeners_from_namespace(namespace)
+    if event is None:
+        if listener is None:
+            return _remove_all_context_listeners(context, listeners)
+
+        removed = False
+        for scoped_listeners in listeners.scope.values():
+            removed = _remove_context_listener(context, listener, scoped_listeners) or removed
+
+        for typed_listeners in listeners.types.values():
+            removed = _remove_context_listener(context, listener, typed_listeners) or removed
+
+        return removed
+    elif isinstance(event, str):
+        if event == &#34;&#34;:
+            raise ValueError(&#34;Event scope must be a valid string&#34;)
+
+        scope = tuple(event.split(&#34;.&#34;))
+        return (
+            _remove_all_scoped_context_listener(scope, context, listeners.scope)
+            if listener is None
+            else _remove_scoped_context_listener(scope, context, listener, listeners.scope)
+        )
+    elif event in listeners.types:
+        typed_listeners = listeners.types[event]
+        return (
+            _remove_context_listeners(context, typed_listeners)
+            if listener is None
+            else _remove_context_listener(context, listener, typed_listeners)
+        )
+    return False</code></pre>
+</details>
+</dd>
+<dt id="emitter.wait"><code class="name flex">
+<span>async def <span class="ident">wait</span></span>(<span>event: Union[str, Type[~K]], namespace: object) -> ~K</span>
+</code></dt>
+<dd>
+<div class="desc"><p>This is a helper function that awaits for the first execution of a given
+event or scope namespace and return its value.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>event</code></strong></dt>
+<dd>Event type or scope namespace.</dd>
+<dt><strong><code>namespace</code></strong></dt>
+<dd>Specify the namespace in which to wait for the event emission.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<p>Emitted event instance.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">async def wait(event: T.Union[str, T.Type[K]], namespace: object) -&gt; K:
+    &#34;&#34;&#34;This is a helper function that awaits for the first execution of a given
+    event or scope namespace and return its value.
+
+    Args:
+
+        event: Event type or scope namespace.
+
+        namespace: Specify the namespace in which to wait for the event emission.
+
+    Returns:
+
+        Emitted event instance.
+
+    &#34;&#34;&#34;
+
+    # Retrieve listeners
+    loop = get_running_loop()
+    result: &#34;Future[K]&#34; = loop.create_future()
+    listeners = retrieve_listeners_from_namespace(namespace)
+
+    # Don&#39;t keep namespace reference
+    del namespace
+
+    on(event, listeners, result.set_result, once=True)
+
+    try:
+        return await result
+    finally:
+        if result.exception():
+            # An exception occurred. It is probable that the listeners didn&#39;t execute,
+            # so remove it.
+            remove(event, listeners, result.set_result)</code></pre>
+</details>
+</dd>
+</dl>
+</section>
+<section>
+<h2 class="section-title" id="header-classes">Classes</h2>
+<dl>
+<dt id="emitter.Listenable"><code class="flex name class">
+<span>class <span class="ident">Listenable</span></span>
+<span>(</span><span>*args, **kwds)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>A protocol that defines emitter namespaces.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class Listenable(Te.Protocol):
+    &#34;&#34;&#34;A protocol that defines emitter namespaces.&#34;&#34;&#34;
+
+    __listeners__: Listeners</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li>typing.Protocol</li>
+<li>typing.Generic</li>
+</ul>
+</dd>
+<dt id="emitter.Listeners"><code class="flex name class">
+<span>class <span class="ident">Listeners</span></span>
+</code></dt>
+<dd>
+<div class="desc"><p>Data struct for storing listeners in a Namespace.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class Listeners:
+    &#34;&#34;&#34;Data struct for storing listeners in a Namespace.&#34;&#34;&#34;
+
+    __slots__ = (&#34;scope&#34;, &#34;types&#34;)
+
+    def __init__(self) -&gt; None:
+        self.scope: Te.Final[
+            T.MutableMapping[
+                T.Tuple[str, ...],
+                T.MutableMapping[ListenerCb[T.Any], T.Tuple[ListenerOpts, Context]],
+            ]
+        ] = defaultdict(BestDict)
+        self.types: Te.Final[
+            T.MutableMapping[
+                type, T.MutableMapping[ListenerCb[T.Any], T.Tuple[ListenerOpts, Context]]
+            ]
+        ] = defaultdict(BestDict)</code></pre>
+</details>
+<h3>Instance variables</h3>
+<dl>
+<dt id="emitter.Listeners.scope"><code class="name">var <span class="ident">scope</span></code></dt>
+<dd>
+<div class="desc"><p>Return an attribute of instance, which is of type owner.</p></div>
+</dd>
+<dt id="emitter.Listeners.types"><code class="name">var <span class="ident">types</span></code></dt>
+<dd>
+<div class="desc"><p>Return an attribute of instance, which is of type owner.</p></div>
+</dd>
+</dl>
+</dd>
+<dt id="emitter.context"><code class="flex name class">
+<span>class <span class="ident">context</span></span>
+<span>(</span><span>*args, **kwds)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Emitter listener context.</p>
+<p>For advanced control of listener's life-cycle.</p>
+<div class="admonition todo">
+<p class="admonition-title">TODO</p>
+<p>Improve, add examples</p>
+</div></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class context(T.ContextManager[&#34;context&#34;]):
+    &#34;&#34;&#34;Emitter listener context.
+
+    For advanced control of listener&#39;s life-cycle.
+
+    .. TODO::
+        Improve, add examples
+    &#34;&#34;&#34;
+
+    def __init__(self) -&gt; None:
+        self.id: T.Final[UUID] = uuid4()
+
+        # Internal
+        self._ids: T.Final[T.Set[UUID]] = {self.id}
+        self._token: T.Optional[&#34;Token[context]&#34;] = None
+
+    def __exit__(self, _: T.Any, __: T.Any, ___: T.Any) -&gt; Te.Literal[False]:
+        if self._token is not None:
+            CONTEXT.reset(self._token)
+            self._token = None
+
+        return False
+
+    def __enter__(self) -&gt; &#34;context&#34;:
+        self._token = CONTEXT.set(self)
+
+        self.add(self.id)
+
+        return self
+
+    def __contains__(self, item: T.Union[UUID, &#34;context&#34;]) -&gt; bool:
+        return (item.id if isinstance(item, context) else item) in self._ids
+
+    def add(self, other: UUID) -&gt; None:
+        &#34;&#34;&#34;Add an identifier to this context.
+
+        Args:
+            other: Identifier
+
+        &#34;&#34;&#34;
+        assert self._token is not None
+
+        self._ids.add(other)
+
+        previous_context = self._token.old_value
+        if previous_context is not Token.MISSING:
+            previous_context.add(other)</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li>contextlib.AbstractContextManager</li>
+<li>abc.ABC</li>
+<li>typing.Generic</li>
+</ul>
+<h3>Methods</h3>
+<dl>
+<dt id="emitter.context.add"><code class="name flex">
+<span>def <span class="ident">add</span></span>(<span>self, other: uuid.UUID) -> NoneType</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Add an identifier to this context.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>other</code></strong></dt>
+<dd>Identifier</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def add(self, other: UUID) -&gt; None:
+    &#34;&#34;&#34;Add an identifier to this context.
+
+    Args:
+        other: Identifier
+
+    &#34;&#34;&#34;
+    assert self._token is not None
+
+    self._ids.add(other)
+
+    previous_context = self._token.old_value
+    if previous_context is not Token.MISSING:
+        previous_context.add(other)</code></pre>
+</details>
+</dd>
+</dl>
+</dd>
+</dl>
+</section>
+</article>
+<nav id="sidebar">
+<h1>Index</h1>
+<div class="toc">
+<ul>
+<li><a href="#namespace">Namespace</a></li>
+<li><a href="#events">Events</a></li>
+<li><a href="#listeners">Listeners</a><ul>
+<li><a href="#special-events">Special events:</a></li>
+</ul>
+</li>
+<li><a href="#scope">Scope</a></li>
+<li><a href="#event-inheritance">Event inheritance</a></li>
+</ul>
+</div>
+<ul id="index">
+<li><h3><a href="#header-submodules">Sub-modules</a></h3>
+<ul>
+<li><code><a title="emitter.error" href="error.html">emitter.error</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-functions">Functions</a></h3>
+<ul class="">
+<li><code><a title="emitter.emit" href="#emitter.emit">emit</a></code></li>
+<li><code><a title="emitter.on" href="#emitter.on">on</a></code></li>
+<li><code><a title="emitter.remove" href="#emitter.remove">remove</a></code></li>
+<li><code><a title="emitter.wait" href="#emitter.wait">wait</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-classes">Classes</a></h3>
+<ul>
+<li>
+<h4><code><a title="emitter.Listenable" href="#emitter.Listenable">Listenable</a></code></h4>
+</li>
+<li>
+<h4><code><a title="emitter.Listeners" href="#emitter.Listeners">Listeners</a></code></h4>
+<ul class="">
+<li><code><a title="emitter.Listeners.scope" href="#emitter.Listeners.scope">scope</a></code></li>
+<li><code><a title="emitter.Listeners.types" href="#emitter.Listeners.types">types</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="emitter.context" href="#emitter.context">context</a></code></h4>
+<ul class="">
+<li><code><a title="emitter.context.add" href="#emitter.context.add">add</a></code></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc"><cite>pdoc</cite> 0.8.1</a>.</p>
+</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/highlight.min.js"></script>
+<script>hljs.initHighlightingOnLoad()</script>
+</body>
+</html>
