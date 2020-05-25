@@ -43,10 +43,10 @@ basic interface needed for emitting events and registering listeners.</p>
 </div>
 </div>
 <h2 id="namespace">Namespace</h2>
-<p>Namespaces are objects that have an <code>__listeners__</code> attribute which expose an <code><a title="emitter.Listeners" href="#emitter.Listeners">Listeners</a></code>
-instance. If the namespace don't have an <code>__listeners__</code> attribute, but have writable attributes,
-the lib will attempt to inject one automatically, so that most python objects can be used as
-Namespaces.</p>
+<p>Namespaces are objects that have an <code>__listeners__</code> attribute which expose an
+<code><a title="emitter.Listeners" href="#emitter.Listeners">Listeners</a></code> instance. If the namespace don't have an <code>__listeners__</code> attribute the lib
+will attempt transparently inject a weak reference for one so that most python objects can be
+used as Namespaces.</p>
 <pre><code class="python"># A bare class can be a namespace
 class GlobalNamespace:
     pass
@@ -299,10 +299,10 @@ import emitter
 
 ## Namespace
 
-Namespaces are objects that have an `__listeners__` attribute which expose an `emitter.Listeners`
-instance. If the namespace don&#39;t have an `__listeners__` attribute, but have writable attributes,
-the lib will attempt to inject one automatically, so that most python objects can be used as
-Namespaces.
+Namespaces are objects that have an `__listeners__` attribute which expose an
+`emitter.Listeners` instance. If the namespace don&#39;t have an `__listeners__` attribute the lib
+will attempt transparently inject a weak reference for one so that most python objects can be
+used as Namespaces.
 
 ```python
 # A bare class can be a namespace
@@ -566,8 +566,8 @@ emitter.emit(
 ```
 &#34;&#34;&#34;
 
-# Internal
-from sys import version_info
+# Must be first as to load the aiocontextvars polyfill lib
+from ._helpers import contextvars  # isort:skip
 
 # External
 from importlib_metadata import version  # type: ignore[import]
@@ -588,12 +588,6 @@ except Exception:  # pragma: no cover
 
     warn(f&#34;Failed to set version due to:\n{traceback.format_exc()}&#34;, ImportWarning)
     __version__ = &#34;0.0a0&#34;
-
-# Enable asyncio contextvars support in Python 3.6:
-if version_info &lt; (3, 7):
-    import aiocontextvars  # type: ignore[import]
-
-    del aiocontextvars
 
 __all__ = (
     &#34;on&#34;,
@@ -830,33 +824,14 @@ undecorated forms this function returns the given event listener.</p></div>
         if context:
             raise ValueError(&#34;Can&#39;t use context manager without a listener defined&#34;)
         # Decorator behaviour
-        return lambda cb: on(event, namespace, cb, once=once, loop=loop, raise_on_exc=raise_on_exc)
+        return lambda cb: on(
+            event, namespace, cb, once=once, loop=loop, context=False, raise_on_exc=raise_on_exc
+        )
 
     if context:
         if once:
             raise ValueError(&#34;Can&#39;t use context manager with a once listener&#34;)
-        return _context(event, namespace, listener, raise_on_exc=raise_on_exc)
-
-    if event is None:
-        raise ValueError(&#34;Event type can&#39;t be NoneType&#34;)
-
-    if event is object:
-        raise ValueError(&#34;Event type can&#39;t be object, too generic&#34;)
-
-    if isinstance(event, str):
-        if event == &#34;&#34;:
-            raise ValueError(&#34;Event scope must be a valid string&#34;)
-
-        scope: T.Optional[T.Tuple[str, ...]] = tuple(event.split(&#34;.&#34;))
-    else:
-        if issubclass(event, BaseException) and not issubclass(event, Exception):
-            raise ValueError(&#34;Event type can&#39;t be a BaseException&#34;)
-
-        if issubclass(event, type):
-            # Event type must be a class. Reject Metaclass and cia.
-            raise ValueError(&#34;Event type must be an instance of type&#34;)
-
-        scope = None
+        return _context(loop, event, listener, namespace, raise_on_exc)
 
     if not callable(listener):
         raise ValueError(&#34;Listener must be callable&#34;)
@@ -870,25 +845,38 @@ undecorated forms this function returns the given event listener.</p></div>
 
     if loop is None and iscoroutinefunction(listener):
         # Automatically set loop for Coroutines to avoid problems with emission from another thread
-        try:
+        with suppress(RuntimeError):
             loop = get_running_loop()
-        except RuntimeError:
-            loop = None
 
     if loop:
-        listener = bound_loop_to_listener(listener, loop)
-
-    # Group listener&#39;s opts and context
-    listener_info = (opts, copy_context())
+        listener = BoundLoopListenerWrapper(loop, listener)
 
     # Retrieve listeners
     listeners = retrieve_listeners_from_namespace(namespace)
 
+    # Group listener&#39;s opts and context
+    with (
+        nullcontext()
+        if listeners.context is None or listeners.context.active
+        else listeners.context
+    ):
+        listener_info = (opts, copy_context())
+
     # Add the given listener to the correct queue
-    if scope:
-        listeners.scope[scope][listener] = listener_info
+    if isinstance(event, str):
+        if event == &#34;&#34;:
+            raise ValueError(&#34;Event scope must be a valid string&#34;)
+        listeners.scope[tuple(event.split(&#34;.&#34;))][listener] = listener_info
+    elif event is None:
+        raise ValueError(&#34;Event type can&#39;t be NoneType&#34;)
+    elif event is object:
+        raise ValueError(&#34;Event type can&#39;t be object, too generic&#34;)
+    elif issubclass(event, BaseException) and not issubclass(event, Exception):
+        raise ValueError(&#34;Event type can&#39;t be a BaseException&#34;)
+    elif issubclass(event, type):
+        # Event type must be a class. Reject Metaclass and cia.
+        raise ValueError(&#34;Event type must be an instance of type&#34;)
     else:
-        assert isinstance(event, type)
         listeners.types[event][listener] = listener_info
 
     return listener</code></pre>
@@ -966,10 +954,11 @@ namespace and context.</p>
         Boolean indicating whether any listener removal occurred.
 
     &#34;&#34;&#34;
-    if context is None:
-        context = CONTEXT.get()
-
     listeners = retrieve_listeners_from_namespace(namespace)
+
+    if context is None:
+        context = listeners.context or CONTEXT.get()
+
     if event is None:
         if listener is None:
             return _remove_all_context_listeners(context, listeners)
@@ -1094,23 +1083,25 @@ event or scope namespace and return its value.</p>
 <pre><code class="python">class Listeners:
     &#34;&#34;&#34;Data struct for storing listeners in a Namespace.&#34;&#34;&#34;
 
-    __slots__ = (&#34;scope&#34;, &#34;types&#34;)
+    __slots__ = (&#34;scope&#34;, &#34;types&#34;, &#34;context&#34;)
 
-    def __init__(self) -&gt; None:
-        self.scope: Te.Final[
-            T.MutableMapping[
-                T.Tuple[str, ...],
-                T.MutableMapping[ListenerCb[T.Any], T.Tuple[ListenerOpts, Context]],
-            ]
-        ] = defaultdict(BestDict)
-        self.types: Te.Final[
-            T.MutableMapping[
-                type, T.MutableMapping[ListenerCb[T.Any], T.Tuple[ListenerOpts, Context]]
-            ]
-        ] = defaultdict(BestDict)</code></pre>
+    def __init__(
+        self,
+        *,
+        _scope: T.Optional[_scope_t] = None,
+        _types: T.Optional[_types_t] = None,
+        _context: T.Optional[&#34;context&#34;] = None,
+    ) -&gt; None:
+        self.scope: Te.Final[_scope_t] = defaultdict(BestDict) if _scope is None else _scope
+        self.types: Te.Final[_types_t] = defaultdict(BestDict) if _types is None else _types
+        self.context: Te.Final[T.Optional[&#34;context&#34;]] = _context</code></pre>
 </details>
 <h3>Instance variables</h3>
 <dl>
+<dt id="emitter.Listeners.context"><code class="name">var <span class="ident">context</span></code></dt>
+<dd>
+<div class="desc"><p>Return an attribute of instance, which is of type owner.</p></div>
+</dd>
 <dt id="emitter.Listeners.scope"><code class="name">var <span class="ident">scope</span></code></dt>
 <dd>
 <div class="desc"><p>Return an attribute of instance, which is of type owner.</p></div>
@@ -1146,43 +1137,56 @@ event or scope namespace and return its value.</p>
     &#34;&#34;&#34;
 
     def __init__(self) -&gt; None:
-        self.id: T.Final[UUID] = uuid4()
-
         # Internal
-        self._ids: T.Final[T.Set[UUID]] = {self.id}
-        self._token: T.Optional[&#34;Token[context]&#34;] = None
+        self._ids: T.Final[T.Set[int]] = {id(self)}
+        self._token: T.Optional[Token[context]] = None
 
     def __exit__(self, _: T.Any, __: T.Any, ___: T.Any) -&gt; Te.Literal[False]:
-        if self._token is not None:
-            CONTEXT.reset(self._token)
-            self._token = None
+        if self._token is None:
+            raise RuntimeError(&#34;Exiting an inactive emitter.context is not possible&#34;)
+
+        CONTEXT.reset(self._token)
+        self._token = None
 
         return False
 
     def __enter__(self) -&gt; &#34;context&#34;:
+        if self._token is not None:
+            raise RuntimeError(&#34;Entering an active emitter.context is not possible&#34;)
+
         self._token = CONTEXT.set(self)
-
-        self.add(self.id)
-
+        self.add(self)
         return self
 
-    def __contains__(self, item: T.Union[UUID, &#34;context&#34;]) -&gt; bool:
-        return (item.id if isinstance(item, context) else item) in self._ids
+    def __contains__(self, item: T.Union[int, &#34;context&#34;]) -&gt; bool:
+        return (id(item) if isinstance(item, context) else item) in self._ids
 
-    def add(self, other: UUID) -&gt; None:
-        &#34;&#34;&#34;Add an identifier to this context.
+    def add(self, other: T.Union[int, &#34;context&#34;]) -&gt; None:
+        &#34;&#34;&#34;Add another context as child of this one.
 
         Args:
-            other: Identifier
+            other: Other context
 
         &#34;&#34;&#34;
-        assert self._token is not None
+        if isinstance(other, context):
+            other = id(other)
 
-        self._ids.add(other)
+        if id(self) != other:
+            self._ids.add(other)
 
-        previous_context = self._token.old_value
-        if previous_context is not Token.MISSING:
-            previous_context.add(other)</code></pre>
+        if self._token and self._token.old_value is not Token.MISSING:
+            self._token.old_value.add(other)
+
+    @property
+    def active(self) -&gt; bool:
+        return self._token is not None
+
+    def wrap_listeners(self, namespace: object) -&gt; Listeners:
+        if self._token is None:
+            raise RuntimeError(&#34;Emitter.context must be active to wrap listeners&#34;)
+
+        listeners = retrieve_listeners_from_namespace(namespace)
+        return Listeners(_scope=listeners.scope, _types=listeners.types, _context=self)</code></pre>
 </details>
 <h3>Ancestors</h3>
 <ul class="hlist">
@@ -1190,36 +1194,69 @@ event or scope namespace and return its value.</p>
 <li>abc.ABC</li>
 <li>typing.Generic</li>
 </ul>
+<h3>Instance variables</h3>
+<dl>
+<dt id="emitter.context.active"><code class="name">var <span class="ident">active</span> : bool</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def active(self) -&gt; bool:
+    return self._token is not None</code></pre>
+</details>
+</dd>
+</dl>
 <h3>Methods</h3>
 <dl>
 <dt id="emitter.context.add"><code class="name flex">
-<span>def <span class="ident">add</span></span>(<span>self, other: uuid.UUID) -> NoneType</span>
+<span>def <span class="ident">add</span></span>(<span>self, other: Union[int, ForwardRef('context')]) -> NoneType</span>
 </code></dt>
 <dd>
-<div class="desc"><p>Add an identifier to this context.</p>
+<div class="desc"><p>Add another context as child of this one.</p>
 <h2 id="args">Args</h2>
 <dl>
 <dt><strong><code>other</code></strong></dt>
-<dd>Identifier</dd>
+<dd>Other context</dd>
 </dl></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def add(self, other: UUID) -&gt; None:
-    &#34;&#34;&#34;Add an identifier to this context.
+<pre><code class="python">def add(self, other: T.Union[int, &#34;context&#34;]) -&gt; None:
+    &#34;&#34;&#34;Add another context as child of this one.
 
     Args:
-        other: Identifier
+        other: Other context
 
     &#34;&#34;&#34;
-    assert self._token is not None
+    if isinstance(other, context):
+        other = id(other)
 
-    self._ids.add(other)
+    if id(self) != other:
+        self._ids.add(other)
 
-    previous_context = self._token.old_value
-    if previous_context is not Token.MISSING:
-        previous_context.add(other)</code></pre>
+    if self._token and self._token.old_value is not Token.MISSING:
+        self._token.old_value.add(other)</code></pre>
+</details>
+</dd>
+<dt id="emitter.context.wrap_listeners"><code class="name flex">
+<span>def <span class="ident">wrap_listeners</span></span>(<span>self, namespace: object) -> emitter._types.Listeners</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def wrap_listeners(self, namespace: object) -&gt; Listeners:
+    if self._token is None:
+        raise RuntimeError(&#34;Emitter.context must be active to wrap listeners&#34;)
+
+    listeners = retrieve_listeners_from_namespace(namespace)
+    return Listeners(_scope=listeners.scope, _types=listeners.types, _context=self)</code></pre>
 </details>
 </dd>
 </dl>
@@ -1263,6 +1300,7 @@ event or scope namespace and return its value.</p>
 <li>
 <h4><code><a title="emitter.Listeners" href="#emitter.Listeners">Listeners</a></code></h4>
 <ul class="">
+<li><code><a title="emitter.Listeners.context" href="#emitter.Listeners.context">context</a></code></li>
 <li><code><a title="emitter.Listeners.scope" href="#emitter.Listeners.scope">scope</a></code></li>
 <li><code><a title="emitter.Listeners.types" href="#emitter.Listeners.types">types</a></code></li>
 </ul>
@@ -1270,7 +1308,9 @@ event or scope namespace and return its value.</p>
 <li>
 <h4><code><a title="emitter.context" href="#emitter.context">context</a></code></h4>
 <ul class="">
+<li><code><a title="emitter.context.active" href="#emitter.context.active">active</a></code></li>
 <li><code><a title="emitter.context.add" href="#emitter.context.add">add</a></code></li>
+<li><code><a title="emitter.context.wrap_listeners" href="#emitter.context.wrap_listeners">wrap_listeners</a></code></li>
 </ul>
 </li>
 </ul>
