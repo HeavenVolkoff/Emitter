@@ -117,7 +117,7 @@ emitter.on(
     UserRegisteredEvent,
     GlobalNamespace,
     lambda event: print(
-        f"User<id={emitter.id}, name={emitter.name}, email={emitter.email}> "
+        f"User<id={event.id}, name={event.name}, email={event.email}> "
         "registered"
     )
 )
@@ -152,7 +152,7 @@ async def write_user(event: UserRegisteredEvent) -> None:
 
     await conn.execute(
         'INSERT INTO users(id, name, email) VALUES($1, $2, $3)',
-        emitter.id, emitter.name, emitter.email
+        event.id, event.name, event.email
     )
 
     await conn.close()
@@ -206,7 +206,7 @@ async def write_admin_permission(event: UserRegisteredEvent) -> None:
 
     await con.execute(
         'UPDATE users SET admin=$2 WHERE id=$1',
-        emitter.id, True
+        event.id, True
     )
 
     await conn.close()
@@ -269,7 +269,7 @@ class ErrorMetric(Metric):
 
 @emitter.on(Metric, GlobalNamespace)
 def calculate_total_error(event: ErrorMetric):
-    total_error[emitter.error] += 1
+    total_error[event.error] += 1
 
 emitter.emit(
     ErrorMetric(name="error", value=1, error=RuntimeError),
