@@ -1,17 +1,15 @@
-# Internal
-import typing as T
-import asyncio
-import unittest
+# Standard
 from typing import NamedTuple
 from asyncio import Future, CancelledError
 from unittest.mock import Mock, call
+import typing as T
+import asyncio
+import unittest
 
 # External
-import asynctest
-
-# External
-import emitter
 from emitter.error import ListenerEventLoopError, ListenerStoppedEventLoopError
+import emitter
+import asynctest
 
 # Generic types
 K = T.TypeVar("K")
@@ -623,6 +621,42 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
             mock.assert_not_called()
             mock2.assert_not_called()
 
+    async def test_wrap_listeners_context(self) -> None:
+        mock = Mock()
+
+        with emitter.context() as ctx:
+            listeners = ctx.wrap_listeners(Global)
+
+        emitter.on("test", listeners, mock)
+
+        self.assertTrue(await emitter.emit(None, Global, scope="test"))
+        mock.assert_called_once_with(None)
+        mock.reset_mock()
+
+        self.assertTrue(await emitter.emit(None, listeners, scope="test"))
+        mock.assert_called_once_with(None)
+        mock.reset_mock()
+
+        self.assertTrue(emitter.remove("test", Global, mock, ctx))
+        self.assertFalse(await emitter.emit(None, Global, scope="test"))
+        self.assertFalse(await emitter.emit(None, listeners, scope="test"))
+        mock.assert_not_called()
+
+        emitter.on("test", listeners, mock)
+
+        self.assertTrue(await emitter.emit(None, Global, scope="test"))
+        mock.assert_called_once_with(None)
+        mock.reset_mock()
+
+        self.assertTrue(await emitter.emit(None, listeners, scope="test"))
+        mock.assert_called_once_with(None)
+        mock.reset_mock()
+
+        self.assertTrue(emitter.remove("test", listeners, mock))
+        self.assertFalse(await emitter.emit(None, Global, scope="test"))
+        self.assertFalse(await emitter.emit(None, listeners, scope="test"))
+        mock.assert_not_called()
+
     async def test_context_stack(self) -> None:
         mock = Mock()
 
@@ -652,8 +686,24 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
                 with emitter.context():
                     emitter.on("test", Global, lambda x: mock(6))
 
+        with emitter.context() as ctx3:
+            listener0 = ctx3.wrap_listeners(Global)
+
+        with emitter.context():
+            emitter.on("test", listener0, lambda x: mock(7))
+
+            with emitter.context() as ctx5:
+                listener1 = ctx5.wrap_listeners(Global)
+
+            @emitter.on("test", Global)
+            async def setup_remove(_: T.Any) -> None:
+                await asyncio.sleep(0)
+                emitter.remove("test", Global)
+
+        emitter.on("test", listener1, lambda x: mock(8))
+
         self.assertTrue(await emitter.emit(None, Global, scope="test"))
-        mock.assert_has_calls([call(1), call(3), call(4), call(6)])
+        mock.assert_has_calls([call(1), call(3), call(4), call(6), call(7), call(8)])
         mock.reset_mock()
         self.assertTrue(await emitter.emit(None, Global, scope="test"))
         mock.assert_has_calls([call(1), call(3), call(4), call(6), call(2), call(5)])

@@ -1,6 +1,6 @@
-# Internal
-import typing as T
+# Standard
 from contextvars import Context
+import typing as T
 
 # Project
 from ._types import Listeners, ListenerCb, ListenerOpts
@@ -123,10 +123,11 @@ def remove(
         Boolean indicating whether any listener removal occurred.
 
     """
-    if context is None:
-        context = CONTEXT.get()
-
     listeners = retrieve_listeners_from_namespace(namespace)
+
+    if context is None:
+        context = listeners.context or CONTEXT.get()
+
     if event is None:
         if listener is None:
             return _remove_all_context_listeners(context, listeners)

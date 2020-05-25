@@ -1,4 +1,5 @@
-# Internal
+# Standard
+from asyncio import Future
 import typing as T
 
 # Project
@@ -8,10 +9,6 @@ from ._helpers import get_running_loop, retrieve_listeners_from_namespace
 
 # Type generics
 K = T.TypeVar("K")
-
-if T.TYPE_CHECKING:
-    # Internal
-    from asyncio import Future
 
 
 async def wait(event: T.Union[str, T.Type[K]], namespace: object) -> K:

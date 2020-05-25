@@ -1,8 +1,8 @@
-# Internal
-import typing as T
+# Standard
 from asyncio import Task, Future, CancelledError, AbstractEventLoop, ensure_future
 from functools import partial
 from contextvars import Context
+import typing as T
 
 # External
 import typing_extensions as Te

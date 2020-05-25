@@ -11,10 +11,10 @@ import emitter
 
 ## Namespace
 
-Namespaces are objects that have an `__listeners__` attribute which expose an `emitter.Listeners`
-instance. If the namespace don't have an `__listeners__` attribute, but have writable attributes,
-the lib will attempt to inject one automatically, so that most python objects can be used as
-Namespaces.
+Namespaces are objects that have an `__listeners__` attribute which expose an
+`emitter.Listeners` instance. If the namespace don't have an `__listeners__` attribute the lib
+will attempt transparently inject a weak reference for one so that most python objects can be
+used as Namespaces.
 
 ```python
 # A bare class can be a namespace
@@ -278,8 +278,8 @@ emitter.emit(
 ```
 """
 
-# Internal
-from sys import version_info
+# Must be first as to load the aiocontextvars polyfill lib
+from ._helpers import contextvars  # isort:skip
 
 # External
 from importlib_metadata import version  # type: ignore[import]
@@ -300,12 +300,6 @@ except Exception:  # pragma: no cover
 
     warn(f"Failed to set version due to:\n{traceback.format_exc()}", ImportWarning)
     __version__ = "0.0a0"
-
-# Enable asyncio contextvars support in Python 3.6:
-if version_info < (3, 7):
-    import aiocontextvars  # type: ignore[import]
-
-    del aiocontextvars
 
 __all__ = (
     "on",
