@@ -140,7 +140,7 @@ emitter.on(
     UserRegisteredEvent,
     GlobalNamespace,
     lambda event: print(
-        f&quot;User&lt;id={emitter.id}, name={emitter.name}, email={emitter.email}&gt; &quot;
+        f&quot;User&lt;id={event.id}, name={event.name}, email={event.email}&gt; &quot;
         &quot;registered&quot;
     )
 )
@@ -173,7 +173,7 @@ async def write_user(event: UserRegisteredEvent) -&gt; None:
 
     await conn.execute(
         'INSERT INTO users(id, name, email) VALUES($1, $2, $3)',
-        emitter.id, emitter.name, emitter.email
+        event.id, event.name, event.email
     )
 
     await conn.close()
@@ -223,7 +223,7 @@ async def write_admin_permission(event: UserRegisteredEvent) -&gt; None:
 
     await con.execute(
         'UPDATE users SET admin=$2 WHERE id=$1',
-        emitter.id, True
+        event.id, True
     )
 
     await conn.close()
@@ -275,7 +275,7 @@ class ErrorMetric(Metric):
 
 @emitter.on(Metric, GlobalNamespace)
 def calculate_total_error(event: ErrorMetric):
-    total_error[emitter.error] += 1
+    total_error[event.error] += 1
 
 emitter.emit(
     ErrorMetric(name=&quot;error&quot;, value=1, error=RuntimeError),
@@ -405,7 +405,7 @@ emitter.on(
     UserRegisteredEvent,
     GlobalNamespace,
     lambda event: print(
-        f&#34;User&lt;id={emitter.id}, name={emitter.name}, email={emitter.email}&gt; &#34;
+        f&#34;User&lt;id={event.id}, name={event.name}, email={event.email}&gt; &#34;
         &#34;registered&#34;
     )
 )
@@ -440,7 +440,7 @@ async def write_user(event: UserRegisteredEvent) -&gt; None:
 
     await conn.execute(
         &#39;INSERT INTO users(id, name, email) VALUES($1, $2, $3)&#39;,
-        emitter.id, emitter.name, emitter.email
+        event.id, event.name, event.email
     )
 
     await conn.close()
@@ -494,7 +494,7 @@ async def write_admin_permission(event: UserRegisteredEvent) -&gt; None:
 
     await con.execute(
         &#39;UPDATE users SET admin=$2 WHERE id=$1&#39;,
-        emitter.id, True
+        event.id, True
     )
 
     await conn.close()
@@ -557,7 +557,7 @@ class ErrorMetric(Metric):
 
 @emitter.on(Metric, GlobalNamespace)
 def calculate_total_error(event: ErrorMetric):
-    total_error[emitter.error] += 1
+    total_error[event.error] += 1
 
 emitter.emit(
     ErrorMetric(name=&#34;error&#34;, value=1, error=RuntimeError),
