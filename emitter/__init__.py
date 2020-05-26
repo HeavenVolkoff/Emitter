@@ -11,10 +11,10 @@ import emitter
 
 ## Namespace
 
-Namespaces are objects that have an `__listeners__` attribute which expose an
-`emitter.Listeners` instance. If the namespace don't have an `__listeners__` attribute the lib
-will attempt transparently inject a weak reference for one so that most python objects can be
-used as Namespaces.
+Namespaces are objects that have a `__listeners__` attribute which exposes an `emitter.Listeners`
+instance. If the namespace doesn't have a `__listeners__` attribute, but has writable attributes,
+the library will automatically attempt to inject a weak reference to one. This way, most Python
+objects can be used as Namespaces.
 
 ```python
 # A bare class can be a namespace
@@ -24,7 +24,7 @@ class GlobalNamespace:
 
 ## Events
 
-Events are any [Type Object](https://docs.python.org/3/library/stdtypes.html#type-objects).
+Events are any [Type Object](https://docs.python.org/3/library/stdtypes.html#type-objects)s.
 
 Basically, most python classes can be an Event:
 ```python
@@ -40,24 +40,24 @@ class UserRegisteredEvent(NamedTuple):
 .. warning::
 
     Due to possible unexpected behaviour by the user, the following classes are not accepted as
-    Events
+    Events:
 
     - `object`:
 
-        Bare object are too generic and listeners attached to it would run for all fired
+        Bare objects are too generic and listeners attached to it would be triggered on all fired
         events.
 
     - `NoneType`:
 
         NoneType events have very little functionality. However, they are accepted when
-        using together with [Scope](#scope).
+        used along with a [Scope](#scope).
 
     - `BaseException`:
 
-        BaseExceptions have special meaning, and the python interpreter normally expects to
-        handle them internally, so trapping them as events wouldn't be advisable.
+        BaseExceptions have special meaning, and the Python interpreter is normally expected to
+        handle them internally. Therefore, trapping them as events wouldn't be advisable.
 
-    A `ValueError` is raised if one of these classes are used as an Event.
+    A `ValueError` is raised if one of these classes is used as an Event.
 
 The method `emitter.emit` enables arbitrary event emission.
 It receives two positional arguments:
@@ -77,7 +77,7 @@ listener_executed = await emitter.emit(
     GlobalNamespace
 )
 
-# listener_executed is False due to there being no listener registered for this
+# listener_executed is False since there is no listener registered for this
 # event at the moment
 assert not listener_executed
 ```
@@ -85,15 +85,15 @@ assert not listener_executed
 .. important::
 
     `emitter.emit` returns an `Awaitable[bool]` that blocks until all listeners for the event
-    finishes executing.
+    finish executing.
 
 ## Listeners
 
-Listeners are any callable that receives a single argument (an instance of the event type) and
+Listeners are any callable that receive a single argument (an instance of the event type) and
 returns `None` or `Awaitable[None]`.
-A listener can be registered for an event via `emitter.on`.
+A listener can be registered for an event using `emitter.on`.
 
-- A callable object as listener:
+- A callable object as a listener:
 
 ```python
 class UserRegistry:
@@ -109,7 +109,7 @@ user_registry = UserRegistry()
 emitter.on(UserRegisteredEvent, GlobalNamespace, user_registry)
 ```
 
-- A lambda as listener:
+- A lambda as a listener:
 
 ```python
 # Register listener
@@ -123,7 +123,7 @@ emitter.on(
 )
 ```
 
-- A function as listener:
+- A function as a listener:
 
 ```python
 # Another approach to example 1
@@ -135,7 +135,7 @@ def register_user(event: UserRegisteredEvent) -> None:
     user_registry.append(event)
 ```
 
-- An asynchronous function as listener:
+- An asynchronous function as a listener:
 
 ```python
 import asyncpg
@@ -172,23 +172,23 @@ async def write_user(event: UserRegisteredEvent) -> None:
 
 - `emitter.error.ListenerEventLoopError`:
 
-    Whenever a listener returned awaitable is bounded to a loop different from the one bounded to
-    the listener, `emitter.emit` fires this event. It is an Exception subclass.
+    `emitter.emit` fires this event whenever an awaitable returned by a listener is bound to a loop different than that of the
+    listener. It is an Exception subclass.
 
 - `emitter.error.ListenerStoppedEventLoopError`
 
-    Whenever `emitter.emit` attempts to execute a listener bounded to a stopped loop, it fires this
-    event. It is an Exception subclass.
+    It's fired whenever `emitter.emit` attempts to execute a listener bound to a loop that has stopped. It
+    is an Exception subclass.
 
-- `Exception` and it's subclasses:
+- `Exception` and its subclasses:
 
     Their behaviour is equivalent to any other event type, with the sole difference being when
     there are no listeners registered to handle an emission of them. In those cases, `emitter.emit`
-    call will raise the Exception instance back to the user context that called it.
+    will raise the Exception instance back to the user context that called it.
 
 ## Scope
 
-Scope is a feature that allow emitting, and listening, events bounded to a name instead of an
+Scope is a feature that allows emitting and listening to events bound to a name rather than an
 event type.
 
 A scoped listener definition requires passing a scope name as argument to `emitter.on` instead
@@ -213,13 +213,12 @@ async def write_admin_permission(event: UserRegisteredEvent) -> None:
 ```
 
 Scope names are dot separated strings. Each dot specifies a more specific scope that must also
-be provided when emitting an event so that the registered listener can be executed.
+be provided when emitting an event to the desired listeners.
 
-Scoped events will execute all listeners registered to the given scope, following the order from
-most specific to more generic ones. Event type listeners will also be executed as normal.
+Scoped events will execute all listeners registered to the given scope following the order from
+most specific to most generic one. Listeners bound to event types will also be executed as normal.
 
-Scoped event emissions can use `None` when wanting to emit a scoped event not ties to any event
-type.
+Scoped event emissions may also use `None` if no event type is to be associated.
 
 ```python
 await emitter.emit(
@@ -232,16 +231,15 @@ await emitter.emit(
 )
 ```
 
-The call above will execute all 5 listeners that were registered in the event. Being one of them
-scoped under `permission.manager`, and the other 4 being event type listeners.
+The call above will execute all 5 listeners that were registered on the event. One of them is
+scoped under `permission.manager` and the other four are event type listeners.
 
 ## Event inheritance
 
 Event inheritance allows specialization of events and their listeners.
 
-Whenever `emitter.emit` is called with an event type instance, it will retrieve all superclasses
-that this instance inherits from, filter them by the ones that have registered listeners and emit
-their events.
+Whenever `emitter.emit` is called with an event type instance, it will retrieve all inherited superclasses,
+filter them by the ones that have registered listeners and emit their events.
 
 ```python
 from dataclass import dataclass
@@ -278,7 +276,7 @@ emitter.emit(
 ```
 """
 
-# Must be first as to load the aiocontextvars polyfill lib
+# Must be first so as to load the aiocontextvars polyfill lib
 from ._helpers import contextvars  # isort:skip
 
 # External
