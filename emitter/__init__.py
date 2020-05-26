@@ -299,12 +299,6 @@ except Exception:  # pragma: no cover
     warn(f"Failed to set version due to:\n{traceback.format_exc()}", ImportWarning)
     __version__ = "0.0a0"
 
-# Enable asyncio contextvars support in Python 3.6:
-if version_info < (3, 7):
-    import aiocontextvars  # type: ignore[import]
-
-    del aiocontextvars
-
 __all__ = (
     "on",
     "wait",

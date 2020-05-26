@@ -1,27 +1,41 @@
-# Internal
-import typing as T
-from asyncio import AbstractEventLoop, iscoroutinefunction
-from contextlib import contextmanager
+# Standard
+from asyncio import AbstractEventLoop
+from inspect import iscoroutinefunction
+from contextlib import suppress, contextmanager
 from contextvars import copy_context
+import typing as T
 
 # External
 import typing_extensions as Te
 
 # Project
-from ._types import ListenerCb, ListenerOpts
-from ._helpers import get_running_loop, bound_loop_to_listener, retrieve_listeners_from_namespace
+from ._types import ListenerCb, ListenerOpts, BoundLoopListenerWrapper
+from ._helpers import get_running_loop, retrieve_listeners_from_namespace
 
 # Type generics
 K = T.TypeVar("K")
 
+nullcontext: T.Callable[[], T.ContextManager[K]]
+try:
+    from contextlib import nullcontext  # type: ignore
+except ImportError:
+    # Python < 3.7
+    @contextmanager
+    def nullcontext(enter_result: T.Optional[K] = None) -> T.Generator[T.Optional[K], None, None]:
+        yield enter_result
+
 
 @contextmanager
 def _context(
-    event: T.Union[str, T.Type[K]], namespace: object, listener: ListenerCb[K], raise_on_exc: bool
+    loop: T.Optional[AbstractEventLoop],
+    event: T.Union[str, T.Type[K]],
+    listener: ListenerCb[K],
+    namespace: object,
+    raise_on_exc: bool,
 ) -> T.Generator[None, None, None]:
     from . import remove
 
-    on(event, namespace, listener, raise_on_exc=raise_on_exc)
+    on(event, namespace, listener, once=False, loop=loop, context=False, raise_on_exc=raise_on_exc)
 
     try:
         yield
@@ -123,33 +137,14 @@ def on(
         if context:
             raise ValueError("Can't use context manager without a listener defined")
         # Decorator behaviour
-        return lambda cb: on(event, namespace, cb, once=once, loop=loop, raise_on_exc=raise_on_exc)
+        return lambda cb: on(
+            event, namespace, cb, once=once, loop=loop, context=False, raise_on_exc=raise_on_exc
+        )
 
     if context:
         if once:
             raise ValueError("Can't use context manager with a once listener")
-        return _context(event, namespace, listener, raise_on_exc=raise_on_exc)
-
-    if event is None:
-        raise ValueError("Event type can't be NoneType")
-
-    if event is object:
-        raise ValueError("Event type can't be object, too generic")
-
-    if isinstance(event, str):
-        if event == "":
-            raise ValueError("Event scope must be a valid string")
-
-        scope: T.Optional[T.Tuple[str, ...]] = tuple(event.split("."))
-    else:
-        if issubclass(event, BaseException) and not issubclass(event, Exception):
-            raise ValueError("Event type can't be a BaseException")
-
-        if issubclass(event, type):
-            # Event type must be a class. Reject Metaclass and cia.
-            raise ValueError("Event type must be an instance of type")
-
-        scope = None
+        return _context(loop, event, listener, namespace, raise_on_exc)
 
     if not callable(listener):
         raise ValueError("Listener must be callable")
@@ -163,25 +158,38 @@ def on(
 
     if loop is None and iscoroutinefunction(listener):
         # Automatically set loop for Coroutines to avoid problems with emission from another thread
-        try:
+        with suppress(RuntimeError):
             loop = get_running_loop()
-        except RuntimeError:
-            loop = None
 
     if loop:
-        listener = bound_loop_to_listener(listener, loop)
-
-    # Group listener's opts and context
-    listener_info = (opts, copy_context())
+        listener = BoundLoopListenerWrapper(loop, listener)
 
     # Retrieve listeners
     listeners = retrieve_listeners_from_namespace(namespace)
 
+    # Group listener's opts and context
+    with (
+        nullcontext()
+        if listeners.context is None or listeners.context.active
+        else listeners.context
+    ):
+        listener_info = (opts, copy_context())
+
     # Add the given listener to the correct queue
-    if scope:
-        listeners.scope[scope][listener] = listener_info
+    if isinstance(event, str):
+        if event == "":
+            raise ValueError("Event scope must be a valid string")
+        listeners.scope[tuple(event.split("."))][listener] = listener_info
+    elif event is None:
+        raise ValueError("Event type can't be NoneType")
+    elif event is object:
+        raise ValueError("Event type can't be object, too generic")
+    elif issubclass(event, BaseException) and not issubclass(event, Exception):
+        raise ValueError("Event type can't be a BaseException")
+    elif issubclass(event, type):
+        # Event type must be a class. Reject Metaclass and cia.
+        raise ValueError("Event type must be an instance of type")
     else:
-        assert isinstance(event, type)
         listeners.types[event][listener] = listener_info
 
     return listener

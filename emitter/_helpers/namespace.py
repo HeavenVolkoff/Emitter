@@ -1,33 +1,27 @@
-# Internal
+# Standard
+from weakref import WeakKeyDictionary
 import typing as T
 
 # Project
-from .._types import Listeners
+from .._types import Listeners, BoundLoopListenerWrapper
+
+_GLOBAL_LISTENERS: T.MutableMapping[object, Listeners] = WeakKeyDictionary()
 
 
 def retrieve_listeners_from_namespace(namespace: object) -> Listeners:
     if namespace is None:
         raise ValueError("Namespace can't be None")
-
-    if isinstance(namespace, Listeners):
+    elif isinstance(namespace, Listeners):
         return namespace
+    elif isinstance(namespace, BoundLoopListenerWrapper):
+        namespace = namespace.listener
 
     listeners: T.Optional[Listeners] = getattr(namespace, "__listeners__", None)
     if not isinstance(listeners, Listeners):
-        if listeners is not None:
-            raise TypeError(
-                "Failed to retrieve namespace's listeners. "
-                f"Namespace({type(namespace).__qualname__}) already defines an "
-                "incompatible `__listeners__` attribute"
-            ) from None
+        if namespace in _GLOBAL_LISTENERS:
+            return _GLOBAL_LISTENERS[namespace]
 
         listeners = Listeners()
-        try:
-            setattr(namespace, "__listeners__", listeners)
-        except AttributeError:  # not all objects are writable
-            raise AttributeError(
-                "Failed to assign namespace's listeners. "
-                f"{type(namespace).__qualname__} attributes aren't writable"
-            ) from None
+        _GLOBAL_LISTENERS[namespace] = listeners
 
     return listeners
