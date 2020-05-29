@@ -1178,9 +1178,6 @@ event or scope namespace and return its value.</p>
         return self._token is not None
 
     def wrap_listeners(self, namespace: object) -&gt; Listeners:
-        if self._token is None:
-            raise RuntimeError(&#34;Emitter.context must be active to wrap listeners&#34;)
-
         listeners = retrieve_listeners_from_namespace(namespace)
         return Listeners(_scope=listeners.scope, _types=listeners.types, _context=self)</code></pre>
 </details>
@@ -1248,9 +1245,6 @@ def active(self) -&gt; bool:
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">def wrap_listeners(self, namespace: object) -&gt; Listeners:
-    if self._token is None:
-        raise RuntimeError(&#34;Emitter.context must be active to wrap listeners&#34;)
-
     listeners = retrieve_listeners_from_namespace(namespace)
     return Listeners(_scope=listeners.scope, _types=listeners.types, _context=self)</code></pre>
 </details>
