@@ -1170,12 +1170,12 @@ event or scope namespace and return its value.</p>
         if id(self) != other:
             self._ids.add(other)
 
-        if self._token and self._token.old_value is not Token.MISSING:
+        if self._token and self._token.old_value not in (self, Token.MISSING):
             self._token.old_value.add(other)
 
     @property
     def active(self) -&gt; bool:
-        return self._token is not None
+        return CONTEXT.get() is self
 
     def wrap_listeners(self, namespace: object) -&gt; Listeners:
         listeners = retrieve_listeners_from_namespace(namespace)
@@ -1198,7 +1198,7 @@ event or scope namespace and return its value.</p>
 </summary>
 <pre><code class="python">@property
 def active(self) -&gt; bool:
-    return self._token is not None</code></pre>
+    return CONTEXT.get() is self</code></pre>
 </details>
 </dd>
 </dl>
@@ -1231,7 +1231,7 @@ def active(self) -&gt; bool:
     if id(self) != other:
         self._ids.add(other)
 
-    if self._token and self._token.old_value is not Token.MISSING:
+    if self._token and self._token.old_value not in (self, Token.MISSING):
         self._token.old_value.add(other)</code></pre>
 </details>
 </dd>
