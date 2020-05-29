@@ -59,12 +59,12 @@ class context(T.ContextManager["context"]):
         if id(self) != other:
             self._ids.add(other)
 
-        if self._token and self._token.old_value is not Token.MISSING:
+        if self._token and self._token.old_value not in (self, Token.MISSING):
             self._token.old_value.add(other)
 
     @property
     def active(self) -> bool:
-        return self._token is not None
+        return CONTEXT.get() is self
 
     def wrap_listeners(self, namespace: object) -> Listeners:
         listeners = retrieve_listeners_from_namespace(namespace)
