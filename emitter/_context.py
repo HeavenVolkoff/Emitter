@@ -67,9 +67,6 @@ class context(T.ContextManager["context"]):
         return self._token is not None
 
     def wrap_listeners(self, namespace: object) -> Listeners:
-        if self._token is None:
-            raise RuntimeError("Emitter.context must be active to wrap listeners")
-
         listeners = retrieve_listeners_from_namespace(namespace)
         return Listeners(_scope=listeners.scope, _types=listeners.types, _context=self)
 
