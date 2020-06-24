@@ -852,7 +852,7 @@ undecorated forms this function returns the given event listener.</p></div>
 
     # Group listener&#39;s opts and context
     with (
-        nullcontext()
+        nullcontext(listeners.context)
         if listeners.context is None or listeners.context.active
         else listeners.context
     ):
