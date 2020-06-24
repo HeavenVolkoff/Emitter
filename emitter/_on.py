@@ -15,12 +15,11 @@ from ._helpers import get_running_loop, retrieve_listeners_from_namespace
 # Type generics
 K = T.TypeVar("K")
 
-nullcontext: T.Callable[[], T.ContextManager[K]]
 try:
-    from contextlib import nullcontext  # type: ignore
+    from contextlib import nullcontext
 except ImportError:
-    # Python < 3.7
-    @contextmanager
+    # Required for Python < 3.7
+    @contextmanager  # type: ignore[no-redef]
     def nullcontext(enter_result: T.Optional[K] = None) -> T.Generator[T.Optional[K], None, None]:
         yield enter_result
 
@@ -169,7 +168,7 @@ def on(
 
     # Group listener's opts and context
     with (
-        nullcontext()
+        nullcontext(listeners.context)
         if listeners.context is None or listeners.context.active
         else listeners.context
     ):
