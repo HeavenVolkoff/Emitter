@@ -26,6 +26,8 @@ async def wait(
 
         namespace: Specify the namespace in which to wait for the event emission.
 
+        scope: TODO
+
     Returns:
 
         Emitted event instance.
