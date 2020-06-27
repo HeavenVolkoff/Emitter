@@ -11,7 +11,12 @@ from ._helpers import get_running_loop, retrieve_listeners_from_namespace
 K = T.TypeVar("K")
 
 
-async def wait(event: T.Union[str, T.Type[K]], namespace: object) -> K:
+async def wait(
+    event: T.Union[str, T.Type[K]],
+    namespace: object,
+    *,
+    scope: T.Union[str, T.Tuple[str, ...]] = "",
+) -> K:
     """This is a helper function that awaits for the first execution of a given
     event or scope namespace and return its value.
 
@@ -35,7 +40,13 @@ async def wait(event: T.Union[str, T.Type[K]], namespace: object) -> K:
     # Don't keep namespace reference
     del namespace
 
-    on(event, listeners, result.set_result, once=True)
+    on(
+        event,  # type: ignore[arg-type]
+        listeners,
+        result.set_result,
+        once=True,
+        scope=scope  # FIXME: ignore on top is due to missing Literal[()] support
+    )
 
     try:
         return await result

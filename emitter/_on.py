@@ -135,7 +135,7 @@ def on(
             cb,
             once=once,
             loop=loop,
-            scope=scope,  # FIX-ME: ignore on top is due to missing Literal[()] support
+            scope=scope,  # FIXME: ignore on top is due to missing Literal[()] support
             raise_on_exc=raise_on_exc,
         )
 
@@ -209,7 +209,7 @@ def on_context(
         listener,
         once=False,
         loop=loop,
-        scope=scope,  # FIX-ME: ignore on top is due to missing Literal[()] support
+        scope=scope,  # FIXME: ignore on top is due to missing Literal[()] support
         raise_on_exc=raise_on_exc,
     )
 
