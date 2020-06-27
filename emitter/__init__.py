@@ -188,6 +188,8 @@ async def write_user(event: UserRegisteredEvent) -> None:
 
 ## Scope
 
+> TODO: Explain recent changes that allow using scopes alongside event inheritance
+
 Scope is a feature that allows emitting and listening to events bound to a name rather than an
 event type.
 
@@ -283,7 +285,7 @@ from ._helpers import contextvars  # isort:skip
 from importlib_metadata import version  # type: ignore[import]
 
 # Project
-from ._on import on
+from ._on import on, on_context
 from ._emit import emit
 from ._wait import wait
 from ._types import Listeners, Listenable
@@ -307,5 +309,6 @@ __all__ = (
     "context",
     "Listeners",
     "Listenable",
+    "on_context",
     "__version__",
 )

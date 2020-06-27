@@ -1,94 +1,43 @@
 # Standard
-from contextvars import Context
 import typing as T
 
 # Project
-from ._types import Listeners, ListenerCb, ListenerOpts
+from ._types import ListenerCb
 from ._context import CONTEXT, context as emitter_context
-from ._helpers import retrieve_listeners_from_namespace
+from ._helpers import parse_scope, retrieve_listeners_from_namespace
 
 K = T.TypeVar("K")
 
 
-def _remove_context_listener(
-    context: emitter_context,
-    listener: ListenerCb[K],
-    listeners: T.MutableMapping[ListenerCb[T.Any], T.Tuple[ListenerOpts, Context]],
+@T.overload
+def remove(
+    event: str,
+    namespace: object,
+    listener: T.Optional[ListenerCb[K]] = None,
+    *,
+    context: T.Optional[emitter_context] = None,
 ) -> bool:
-    if listener not in listeners:
-        return False
-
-    _, ctx = listeners[listener]
-    if ctx[CONTEXT] not in context:
-        return False
-
-    del listeners[listener]
-    return True
+    ...
 
 
-def _remove_context_listeners(
-    context: emitter_context,
-    listeners: T.MutableMapping[ListenerCb[T.Any], T.Tuple[ListenerOpts, Context]],
+@T.overload
+def remove(
+    event: T.Optional[T.Type[K]],
+    namespace: object,
+    listener: T.Optional[ListenerCb[K]] = None,
+    *,
+    scope: T.Union[str, T.Tuple[str, ...]] = "",
+    context: T.Optional[emitter_context] = None,
 ) -> bool:
-    removed = False
-
-    for (listener, (_, ctx)) in tuple(listeners.items()):
-        if ctx[CONTEXT] in context:
-            removed = True
-            del listeners[listener]
-
-    return removed
-
-
-def _remove_all_context_listeners(context: emitter_context, listeners: Listeners) -> bool:
-    removed = False
-    for _, event_listeners in listeners.types.items():
-        removed = _remove_context_listeners(context, event_listeners) or removed
-
-    for _, scoped_listeners in listeners.scope.items():
-        removed = _remove_context_listeners(context, scoped_listeners) or removed
-
-    return removed
-
-
-def _remove_scoped_context_listener(
-    scope: T.Tuple[str, ...],
-    context: emitter_context,
-    listener: ListenerCb[K],
-    listeners: T.MutableMapping[
-        T.Tuple[str, ...], T.MutableMapping[ListenerCb[T.Any], T.Tuple[ListenerOpts, Context]],
-    ],
-) -> bool:
-    removed = False
-    for step in range(len(scope), 0, -1):
-        removed = (
-            _remove_context_listener(context, listener, listeners[scope[: (step + 1)]]) or removed
-        )
-
-    return removed
-
-
-def _remove_all_scoped_context_listener(
-    scope: T.Tuple[str, ...],
-    context: emitter_context,
-    listeners: T.MutableMapping[
-        T.Tuple[str, ...], T.MutableMapping[ListenerCb[T.Any], T.Tuple[ListenerOpts, Context]],
-    ],
-) -> bool:
-    removed = False
-    for listener_scope, scoped_listeners in listeners.items():
-        if scope > listener_scope:
-            continue
-
-        removed = _remove_context_listeners(context, scoped_listeners) or removed
-
-    return removed
+    ...
 
 
 def remove(
     event: T.Union[str, None, T.Type[K]],
     namespace: object,
     listener: T.Optional[ListenerCb[K]] = None,
+    *,
+    scope: T.Union[str, T.Tuple[str, ...]] = "",
     context: T.Optional[emitter_context] = None,
 ) -> bool:
     """Remove listeners, limited by scope, from given event type.
@@ -112,9 +61,11 @@ def remove(
 
         event: Define from which event types the listeners will be removed.
 
-        listener: Define the listener to be removed.
-
         namespace: Define from which namespace to remove the listener
+
+        scope: TODO
+
+        listener: Define the listener to be removed.
 
         context: Define context to restrict listener removal
 
@@ -123,38 +74,80 @@ def remove(
         Boolean indicating whether any listener removal occurred.
 
     """
-    listeners = retrieve_listeners_from_namespace(namespace)
+    if isinstance(event, str):
+        assert scope == ""
+        scope = parse_scope(event)
+        event = None
+    else:
+        scope = parse_scope(scope)
 
     if context is None:
-        context = listeners.context or CONTEXT.get()
+        context = CONTEXT.get()
 
-    if event is None:
-        if listener is None:
-            return _remove_all_context_listeners(context, listeners)
+    scopes = tuple(retrieve_listeners_from_namespace(namespace).scope.items())
+    removed = False
+    if not (listener is None or event is None):
+        for type_scope, types in scopes:
+            if type_scope < scope or event not in types:
+                continue
 
-        removed = False
-        for scoped_listeners in listeners.scope.values():
-            removed = _remove_context_listener(context, listener, scoped_listeners) or removed
+            listeners = types[event]
+            if listener not in listeners:
+                continue
 
-        for typed_listeners in listeners.types.values():
-            removed = _remove_context_listener(context, listener, typed_listeners) or removed
+            _, ctx = listeners[listener]
+            if ctx[CONTEXT] not in context:
+                continue
+
+            del listeners[listener]
+            removed = True
 
         return removed
-    elif isinstance(event, str):
-        if event == "":
-            raise ValueError("Event scope must be a valid string")
 
-        scope = tuple(event.split("."))
-        return (
-            _remove_all_scoped_context_listener(scope, context, listeners.scope)
-            if listener is None
-            else _remove_scoped_context_listener(scope, context, listener, listeners.scope)
-        )
-    elif event in listeners.types:
-        typed_listeners = listeners.types[event]
-        return (
-            _remove_context_listeners(context, typed_listeners)
-            if listener is None
-            else _remove_context_listener(context, listener, typed_listeners)
-        )
-    return False
+    if listener is None and event is not None:
+        for type_scope, types in scopes:
+            if type_scope < scope or event not in types:
+                continue
+
+            listeners = types[event]
+            for (listener, (_, ctx)) in tuple(listeners.items()):
+                if ctx[CONTEXT] not in context:
+                    continue
+
+                del listeners[listener]
+                removed = True
+
+        return removed
+
+    if event is None and listener is not None:
+        for type_scope, types in scopes:
+            if type_scope < scope:
+                continue
+
+            for event, listeners in tuple(types.items()):
+                if listener not in listeners:
+                    continue
+
+                _, ctx = listeners[listener]
+                if ctx[CONTEXT] not in context:
+                    continue
+
+                del listeners[listener]
+                removed = True
+
+        return removed
+
+    for type_scope, types in scopes:
+        if type_scope < scope:
+            continue
+
+        for event, listeners in tuple(types.items()):
+            listeners = types[event]
+            for (listener, (_, ctx)) in tuple(listeners.items()):
+                if ctx[CONTEXT] not in context:
+                    continue
+
+                del listeners[listener]
+                removed = True
+
+    return removed

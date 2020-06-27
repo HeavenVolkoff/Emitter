@@ -56,6 +56,48 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
 
         listener.assert_called_once_with(e)
 
+    async def test_listener_scope(self) -> None:
+        mock = Mock()
+
+        emitter.on(Event, Global, lambda _: mock(0))
+        emitter.on("scope", Global, lambda _: mock(1))
+        emitter.on(Exception, Global, lambda _: mock(2), scope="scope")
+        emitter.on("scope.test", Global, lambda _: mock(3))
+        emitter.on("scope...test.", Global, lambda _: mock(4))
+        emitter.on(RuntimeError, Global, lambda _: mock(5), scope="scope.test.")
+        emitter.on("scope.test.deep", Global, lambda _: mock(6))
+        emitter.on("scope.test.deep.owo", Global, lambda _: mock(7))
+        emitter.on(ValueError, Global, lambda _: mock(8), scope="scope..test....deep..owo.")
+        emitter.on("scope..test....deep..owo.", Global, lambda _: mock(9))
+
+        e = Event("Wowow")
+        self.assertTrue(await emitter.emit(e, Global))
+        mock.assert_called_once_with(0)
+        mock.reset_mock()
+        self.assertTrue(await emitter.emit(e, Global, scope=("scope", "test", "deep", "owo")))
+        mock.assert_has_calls([call(7), call(9), call(6), call(3), call(4), call(1), call(0)])
+        mock.reset_mock()
+        self.assertTrue(await emitter.emit(e, Global, scope="..scope.test..."))
+        mock.assert_has_calls([call(3), call(4), call(1), call(0)])
+        mock.reset_mock()
+        with self.assertRaises(ValueError):
+            await emitter.emit(ValueError(), Global)
+        self.assertTrue(await emitter.emit(ValueError(), Global, scope="scope"))
+        mock.assert_has_calls([call(2)])
+        mock.reset_mock()
+        self.assertTrue(
+            await emitter.emit(RuntimeError(), Global, scope=("scope", "test", "deep", "owo"))
+        )
+        mock.assert_has_calls(
+            [call(7), call(9), call(6), call(5), call(3), call(4), call(2), call(1)]
+        )
+        mock.reset_mock()
+        self.assertTrue(await emitter.emit(ValueError(), Global, scope=".scope.test.deep.owo"))
+        mock.assert_has_calls(
+            [call(8), call(7), call(9), call(6), call(3), call(4), call(2), call(1)]
+        )
+        mock.reset_mock()
+
     async def test_listener_order(self) -> None:
         event = ConnectionError("Test")
         order_mock = Mock()
@@ -130,7 +172,7 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
     async def test_listener_context(self) -> None:
         listener = Mock()
 
-        ctx = emitter.on(Event, Global, listener, context=True)
+        ctx = emitter.on_context(Event, Global, listener)
         self.assertIsInstance(ctx, T.ContextManager)
         with ctx:
             e = Event("Wowow")
@@ -152,23 +194,6 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
         self.assertTrue(await emitter.emit(e, Global))
 
         mock.assert_called_once_with(e)
-
-    async def test_listener_decorator_fail_context(self) -> None:
-        mock = Mock()
-
-        with self.assertRaisesRegex(
-            ValueError, "Can't use context manager without a listener defined"
-        ):
-
-            @emitter.on(Event, Global, context=True)
-            def listener(event: Event) -> None:
-                self.assertEqual("Wowow", event.data)
-                mock(event)
-
-        e = Event("Wowow")
-        self.assertFalse(await emitter.emit(e, Global))
-
-        mock.assert_not_called()
 
     async def test_scoped_listener_decorator(self) -> None:
         mock = Mock()
@@ -498,15 +523,6 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
         self.assertListEqual([False, False, False, False, False], results)
         mock.assert_not_called()
 
-    async def test_once_fail_context(self) -> None:
-        mock = Mock()
-
-        with self.assertRaisesRegex(ValueError, "Can't use context manager with a once listener"):
-            emitter.on(Event, Global, mock, once=True, context=True)
-
-        self.assertFalse(await emitter.emit(Event("0"), Global))
-        mock.assert_not_called()
-
     async def test_superclass_listeners(self) -> None:
         class Event2(Event):
             pass
@@ -637,7 +653,7 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
         mock.assert_called_once_with(None)
         mock.reset_mock()
 
-        self.assertTrue(emitter.remove("test", Global, mock, ctx))
+        self.assertTrue(emitter.remove("test", Global, mock, context=ctx))
         self.assertFalse(await emitter.emit(None, Global, scope="test"))
         self.assertFalse(await emitter.emit(None, listeners, scope="test"))
         mock.assert_not_called()

@@ -10,7 +10,7 @@ import typing_extensions as Te
 
 # Project
 from ._types import ListenerCb, ListenerOpts, BoundLoopListenerWrapper
-from ._helpers import get_running_loop, retrieve_listeners_from_namespace
+from ._helpers import parse_scope, get_running_loop, retrieve_listeners_from_namespace
 
 # Type generics
 K = T.TypeVar("K")
@@ -24,33 +24,14 @@ except ImportError:
         yield enter_result
 
 
-@contextmanager
-def _context(
-    loop: T.Optional[AbstractEventLoop],
-    event: T.Union[str, T.Type[K]],
-    listener: ListenerCb[K],
-    namespace: object,
-    raise_on_exc: bool,
-) -> T.Generator[None, None, None]:
-    from . import remove
-
-    on(event, namespace, listener, once=False, loop=loop, context=False, raise_on_exc=raise_on_exc)
-
-    try:
-        yield
-    finally:
-        remove(event, namespace, listener)
-
-
 @T.overload
 def on(
-    event: T.Union[str, T.Type[K]],
+    event: str,
     namespace: object,
     listener: Te.Literal[None] = None,
     *,
     once: bool = False,
     loop: T.Optional[AbstractEventLoop] = None,
-    context: Te.Literal[False] = False,
     raise_on_exc: bool = False,
 ) -> T.Callable[[ListenerCb[K]], ListenerCb[K]]:
     ...
@@ -58,27 +39,40 @@ def on(
 
 @T.overload
 def on(
-    event: T.Union[str, T.Type[K]],
-    namespace: object,
-    listener: ListenerCb[K],
-    *,
-    once: Te.Literal[False] = False,
-    loop: T.Optional[AbstractEventLoop] = None,
-    context: Te.Literal[True],
-    raise_on_exc: bool = False,
-) -> T.ContextManager[None]:
-    ...
-
-
-@T.overload
-def on(
-    event: T.Union[str, T.Type[K]],
+    event: str,
     namespace: object,
     listener: ListenerCb[K],
     *,
     once: bool = False,
     loop: T.Optional[AbstractEventLoop] = None,
-    context: Te.Literal[False] = False,
+    raise_on_exc: bool = False,
+) -> ListenerCb[K]:
+    ...
+
+
+@T.overload
+def on(
+    event: T.Type[K],
+    namespace: object,
+    listener: Te.Literal[None] = None,
+    *,
+    once: bool = False,
+    loop: T.Optional[AbstractEventLoop] = None,
+    scope: T.Union[str, T.Tuple[str, ...]] = "",
+    raise_on_exc: bool = False,
+) -> T.Callable[[ListenerCb[K]], ListenerCb[K]]:
+    ...
+
+
+@T.overload
+def on(
+    event: T.Type[K],
+    namespace: object,
+    listener: ListenerCb[K],
+    *,
+    once: bool = False,
+    loop: T.Optional[AbstractEventLoop] = None,
+    scope: T.Union[str, T.Tuple[str, ...]] = "",
     raise_on_exc: bool = False,
 ) -> ListenerCb[K]:
     ...
@@ -91,7 +85,7 @@ def on(
     *,
     once: bool = False,
     loop: T.Optional[AbstractEventLoop] = None,
-    context: bool = False,
+    scope: T.Union[str, T.Tuple[str, ...]] = "",
     raise_on_exc: bool = False,
 ) -> T.Union[ListenerCb[K], T.ContextManager[None], T.Callable[[ListenerCb[K]], ListenerCb[K]]]:
     """Add a listener to event type.
@@ -113,6 +107,8 @@ def on(
               correct context. (Default: Current running loop for coroutines functions, None for
               any other callable)
 
+        scope: TODO
+
         context: Return a context for management of this listener lifecycle.
 
         raise_on_exc: Whether an untreated exception raised by this listener will make an event
@@ -133,17 +129,22 @@ def on(
 
     """
     if listener is None:
-        if context:
-            raise ValueError("Can't use context manager without a listener defined")
-        # Decorator behaviour
         return lambda cb: on(
-            event, namespace, cb, once=once, loop=loop, context=False, raise_on_exc=raise_on_exc
+            event,  # type: ignore[arg-type]
+            namespace,
+            cb,
+            once=once,
+            loop=loop,
+            scope=scope,  # FIX-ME: ignore on top is due to missing Literal[()] support
+            raise_on_exc=raise_on_exc,
         )
 
-    if context:
-        if once:
-            raise ValueError("Can't use context manager with a once listener")
-        return _context(loop, event, listener, namespace, raise_on_exc)
+    if isinstance(event, str):
+        assert scope == ""
+        scope = parse_scope(event)
+        event = T.cast(T.Type[K], object)
+    else:
+        scope = parse_scope(scope)
 
     if not callable(listener):
         raise ValueError("Listener must be callable")
@@ -175,20 +176,44 @@ def on(
         listener_info = (opts, copy_context())
 
     # Add the given listener to the correct queue
-    if isinstance(event, str):
-        if event == "":
-            raise ValueError("Event scope must be a valid string")
-        listeners.scope[tuple(event.split("."))][listener] = listener_info
-    elif event is None:
+    if event is None:
         raise ValueError("Event type can't be NoneType")
-    elif event is object:
-        raise ValueError("Event type can't be object, too generic")
-    elif issubclass(event, BaseException) and not issubclass(event, Exception):
-        raise ValueError("Event type can't be a BaseException")
     elif issubclass(event, type):
         # Event type must be a class. Reject Metaclass and cia.
-        raise ValueError("Event type must be an instance of type")
+        raise ValueError("Event type must be an concrete type")
+    elif event is object and not scope:
+        raise ValueError("Event type can't be object without a scope, too generic")
+    elif issubclass(event, BaseException) and not issubclass(event, Exception):
+        raise ValueError("Event type can't be a BaseException")
     else:
-        listeners.types[event][listener] = listener_info
+        listeners.scope[scope][event][listener] = listener_info
 
     return listener
+
+
+@contextmanager
+def on_context(
+    event: T.Union[str, T.Type[K]],
+    namespace: object,
+    listener: ListenerCb[K],
+    *,
+    loop: T.Optional[AbstractEventLoop] = None,
+    scope: T.Union[str, T.Tuple[str, ...]] = "",
+    raise_on_exc: bool = False,
+) -> T.Iterator[None]:
+    from . import remove
+
+    on(
+        event,  # type: ignore[arg-type]
+        namespace,
+        listener,
+        once=False,
+        loop=loop,
+        scope=scope,  # FIX-ME: ignore on top is due to missing Literal[()] support
+        raise_on_exc=raise_on_exc,
+    )
+
+    try:
+        yield
+    finally:
+        remove(event, namespace, listener)

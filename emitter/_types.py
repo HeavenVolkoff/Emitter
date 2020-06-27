@@ -42,28 +42,17 @@ class ListenerCb(Te.Protocol[K]):
         ...
 
 
-_scope_t = T.MutableMapping[
-    T.Tuple[str, ...], T.MutableMapping[ListenerCb[T.Any], T.Tuple[ListenerOpts, Context]],
-]
 _types_t = T.MutableMapping[
     type, T.MutableMapping[ListenerCb[T.Any], T.Tuple[ListenerOpts, Context]]
 ]
+_scope_t = T.MutableMapping[T.Tuple[str, ...], _types_t]
 
 
 class Listeners:
-    """Data struct for storing listeners in a Namespace."""
-
-    __slots__ = ("scope", "types", "context")
-
     def __init__(
-        self,
-        *,
-        _scope: T.Optional[_scope_t] = None,
-        _types: T.Optional[_types_t] = None,
-        _context: T.Optional["context"] = None,
+        self, _scope: T.Optional[_scope_t] = None, _context: T.Optional["context"] = None
     ) -> None:
-        self.scope: Te.Final[_scope_t] = defaultdict(BestDict) if _scope is None else _scope
-        self.types: Te.Final[_types_t] = defaultdict(BestDict) if _types is None else _types
+        self.scope: Te.Final[_scope_t] = _scope or defaultdict(lambda: defaultdict(BestDict))
         self.context: Te.Final[T.Optional["context"]] = _context
 
 

@@ -11,6 +11,7 @@ import typing_extensions as Te
 from .error import ListenerEventLoopError
 from ._types import Listeners, ListenerCb, ListenerOpts
 from ._helpers import (
+    parse_scope,
     get_running_loop,
     retrieve_loop_from_listener,
     retrieve_listeners_from_namespace,
@@ -194,7 +195,7 @@ def _handle_once(
 
 
 def _retrieve_listeners(
-    listeners: Listeners, event_instance: T.Optional[K], scope: T.Optional[T.Tuple[str, ...]]
+    listeners: Listeners, event_instance: T.Optional[K], scope: T.Tuple[str, ...]
 ) -> T.Sequence[T.Tuple[ListenerCb[K], T.Tuple[ListenerOpts, Context]]]:
     event_type = type(event_instance)
 
@@ -204,7 +205,7 @@ def _retrieve_listeners(
         # situations.
         raise event_instance
 
-    if isinstance(event_instance, type) or issubclass(event_type, type):
+    if issubclass(event_type, type) or isinstance(event_instance, type):
         # Event must be an instance. Event type must be a class. Reject Metaclass and cia.
         raise ValueError("Event type must be an instance of type")
 
@@ -212,38 +213,42 @@ def _retrieve_listeners(
         # Object is too generic, it would cause unexpected behaviour.
         raise ValueError("Event type can't be object, must be a subclass of it")
 
-    callables: T.List[T.Tuple[ListenerCb[K], T.Tuple[ListenerOpts, Context]]] = []
-    if scope:
-        for step in range(len(scope), 0, -1):
-            callables += _handle_once(listeners.scope[scope[:step]])
-
-        if event_instance is None:
-            return callables
-    elif event_instance is None:
+    if event_instance is None and not scope:
         raise ValueError("Event type can only be None when accompanied of a scope")
 
-    callables += _handle_once(listeners.types[event_type])
+    event_mro = tuple(cls for cls in event_type.mro()[1:] if cls is not BaseException)
+    callables: T.List[T.Tuple[ListenerCb[K], T.Tuple[ListenerOpts, Context]]] = []
+    for step in range(len(scope), -1, -1):
+        types = listeners.scope[scope[:step]]
+        if event_type in types:
+            callables += _handle_once(types[event_type])
 
-    for event_supertype in event_type.mro()[1:]:
-        if event_instance is object or event_instance is BaseException:
-            continue
-
-        mro_listeners = listeners.types[event_supertype]
-        callables += _handle_once(mro_listeners)
+        for event_supertype in event_mro:
+            if event_supertype in types:
+                mro_listeners = types[event_supertype]
+                callables += _handle_once(mro_listeners)
 
     return callables
 
 
 @T.overload
 def emit(
-    event_instance: object, namespace: object, *, loop: AbstractEventLoop, scope: str = "",
+    event_instance: object,
+    namespace: object,
+    *,
+    loop: AbstractEventLoop,
+    scope: T.Union[str, T.Tuple[str, ...]] = "",
 ) -> T.Optional["Task[bool]"]:
     ...
 
 
 @T.overload
 def emit(
-    event_instance: object, namespace: object, *, loop: Te.Literal[None] = None, scope: str = "",
+    event_instance: object,
+    namespace: object,
+    *,
+    loop: Te.Literal[None] = None,
+    scope: T.Union[str, T.Tuple[str, ...]] = "",
 ) -> T.Coroutine[None, None, bool]:
     ...
 
@@ -253,7 +258,7 @@ def emit(
     namespace: object,
     *,
     loop: T.Optional[AbstractEventLoop] = None,
-    scope: str = "",
+    scope: T.Union[str, T.Tuple[str, ...]] = "",
 ) -> T.Union[None, "Task[bool]", T.Coroutine[None, None, bool]]:
     """Emit an event, and execute its listeners.
 
@@ -297,9 +302,7 @@ def emit(
 
     """
     namespace_listeners = _retrieve_listeners(
-        retrieve_listeners_from_namespace(namespace),
-        event_instance,
-        tuple(scope.split(".")) if scope else None,
+        retrieve_listeners_from_namespace(namespace), event_instance, parse_scope(scope)
     )
 
     coro = _exec_listeners(namespace_listeners, event_instance)

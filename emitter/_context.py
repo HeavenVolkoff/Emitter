@@ -68,7 +68,7 @@ class context(T.ContextManager["context"]):
 
     def wrap_listeners(self, namespace: object) -> Listeners:
         listeners = retrieve_listeners_from_namespace(namespace)
-        return Listeners(_scope=listeners.scope, _types=listeners.types, _context=self)
+        return Listeners(_scope=listeners.scope, _context=self)
 
 
 if CONTEXT.get(T.cast(context, None)) is None:
