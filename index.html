@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
-<meta name="generator" content="pdoc 0.8.2" />
+<meta name="generator" content="pdoc 0.8.4" />
 <title>emitter API documentation</title>
 <meta name="description" content="Async-aware event emitter that enables
 [event-driven programming](https://en.wikipedia.org/wiki/Event-driven_programming) by providing the
@@ -620,7 +620,7 @@ __all__ = (
 <h2 class="section-title" id="header-functions">Functions</h2>
 <dl>
 <dt id="emitter.emit"><code class="name flex">
-<span>def <span class="ident">emit</span></span>(<span>event_instance: object, namespace: object, *, loop: Union[asyncio.events.AbstractEventLoop, NoneType] = None, scope: Union[str, Tuple[str, ...]] = '') ‑> Union[NoneType, ForwardRef('Task[bool]'), Coroutine[NoneType, NoneType, bool]]</span>
+<span>def <span class="ident">emit</span></span>(<span>event_instance: object, namespace: object, *, sync: bool = False, loop: Union[asyncio.events.AbstractEventLoop, NoneType] = None, scope: Union[str, Tuple[str, ...]] = '') ‑> Union[NoneType, bool, ForwardRef('Task[bool]'), Coroutine[NoneType, NoneType, bool]]</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Emit an event, and execute its listeners.</p>
@@ -645,6 +645,8 @@ no listener for the given event, None.</p>
 <dd>Event instance to be emitted.</dd>
 <dt><strong><code>namespace</code></strong></dt>
 <dd>Specify a listener namespace to emit this event.</dd>
+<dt><strong><code>sync</code></strong></dt>
+<dd>Whether to only run the synchronous listeners</dd>
 <dt><strong><code>loop</code></strong></dt>
 <dd>Define a loop to execute the listeners.</dd>
 <dt><strong><code>scope</code></strong></dt>
@@ -672,9 +674,10 @@ representing the event emission.</p></div>
     event_instance: object,
     namespace: object,
     *,
+    sync: bool = False,
     loop: T.Optional[AbstractEventLoop] = None,
     scope: T.Union[str, T.Tuple[str, ...]] = &#34;&#34;,
-) -&gt; T.Union[None, &#34;Task[bool]&#34;, T.Coroutine[None, None, bool]]:
+) -&gt; T.Union[None, bool, &#34;Task[bool]&#34;, T.Coroutine[None, None, bool]]:
     &#34;&#34;&#34;Emit an event, and execute its listeners.
 
     When called without a defined loop argument this function always returns a coroutine.
@@ -695,6 +698,8 @@ representing the event emission.</p></div>
         event_instance: Event instance to be emitted.
 
         namespace: Specify a listener namespace to emit this event.
+
+        sync: Whether to only run the synchronous listeners
 
         loop: Define a loop to execute the listeners.
 
@@ -717,8 +722,11 @@ representing the event emission.</p></div>
 
     &#34;&#34;&#34;
     namespace_listeners = _retrieve_listeners(
-        retrieve_listeners_from_namespace(namespace), event_instance, parse_scope(scope)
+        retrieve_listeners_from_namespace(namespace), event_instance, parse_scope(scope), sync
     )
+
+    if sync:
+        return _exec_listeners_sync(namespace_listeners, event_instance)
 
     coro = _exec_listeners(namespace_listeners, event_instance)
 
@@ -753,9 +761,7 @@ Context can't be specified when passing once=True.</p>
 correct context. (Default: Current running loop for coroutines functions, None for
 any other callable)</dd>
 <dt><strong><code>scope</code></strong></dt>
-<dd>TODO</dd>
-<dt><strong><code>context</code></strong></dt>
-<dd>Return a context for management of this listener lifecycle.</dd>
+<dd>Specify a scope for specializing this listener registration.</dd>
 <dt><strong><code>raise_on_exc</code></strong></dt>
 <dd>Whether an untreated exception raised by this listener will make an event
 emission to fail.</dd>
@@ -805,9 +811,7 @@ undecorated forms this function returns the given event listener.</p></div>
               correct context. (Default: Current running loop for coroutines functions, None for
               any other callable)
 
-        scope: TODO
-
-        context: Return a context for management of this listener lifecycle.
+        scope: Specify a scope for specializing this listener registration.
 
         raise_on_exc: Whether an untreated exception raised by this listener will make an event
                       emission to fail.
@@ -833,7 +837,7 @@ undecorated forms this function returns the given event listener.</p></div>
             cb,
             once=once,
             loop=loop,
-            scope=scope,  # FIX-ME: ignore on top is due to missing Literal[()] support
+            scope=scope,  # FIXME: ignore on top is due to missing Literal[()] support
             raise_on_exc=raise_on_exc,
         )
 
@@ -916,7 +920,7 @@ def on_context(
         listener,
         once=False,
         loop=loop,
-        scope=scope,  # FIX-ME: ignore on top is due to missing Literal[()] support
+        scope=scope,  # FIXME: ignore on top is due to missing Literal[()] support
         raise_on_exc=raise_on_exc,
     )
 
@@ -950,7 +954,7 @@ namespace and context.</p>
 <dt><strong><code>namespace</code></strong></dt>
 <dd>Define from which namespace to remove the listener</dd>
 <dt><strong><code>scope</code></strong></dt>
-<dd>TODO</dd>
+<dd>Specify scope for limiting the removal of listeners.</dd>
 <dt><strong><code>listener</code></strong></dt>
 <dd>Define the listener to be removed.</dd>
 <dt><strong><code>context</code></strong></dt>
@@ -993,7 +997,7 @@ namespace and context.</p>
 
         namespace: Define from which namespace to remove the listener
 
-        scope: TODO
+        scope: Specify scope for limiting the removal of listeners.
 
         listener: Define the listener to be removed.
 
@@ -1084,7 +1088,7 @@ namespace and context.</p>
 </details>
 </dd>
 <dt id="emitter.wait"><code class="name flex">
-<span>async def <span class="ident">wait</span></span>(<span>event: Union[str, Type[~K]], namespace: object) ‑> ~K</span>
+<span>async def <span class="ident">wait</span></span>(<span>event: Union[str, Type[~K]], namespace: object, *, scope: Union[str, Tuple[str, ...]] = '') ‑> ~K</span>
 </code></dt>
 <dd>
 <div class="desc"><p>This is a helper function that awaits for the first execution of a given
@@ -1095,6 +1099,8 @@ event or scope namespace and return its value.</p>
 <dd>Event type or scope namespace.</dd>
 <dt><strong><code>namespace</code></strong></dt>
 <dd>Specify the namespace in which to wait for the event emission.</dd>
+<dt><strong><code>scope</code></strong></dt>
+<dd>Specify a scope for specializing this listener registration.</dd>
 </dl>
 <h2 id="returns">Returns</h2>
 <p>Emitted event instance.</p></div>
@@ -1102,7 +1108,12 @@ event or scope namespace and return its value.</p>
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">async def wait(event: T.Union[str, T.Type[K]], namespace: object) -&gt; K:
+<pre><code class="python">async def wait(
+    event: T.Union[str, T.Type[K]],
+    namespace: object,
+    *,
+    scope: T.Union[str, T.Tuple[str, ...]] = &#34;&#34;,
+) -&gt; K:
     &#34;&#34;&#34;This is a helper function that awaits for the first execution of a given
     event or scope namespace and return its value.
 
@@ -1111,6 +1122,8 @@ event or scope namespace and return its value.</p>
         event: Event type or scope namespace.
 
         namespace: Specify the namespace in which to wait for the event emission.
+
+        scope: Specify a scope for specializing this listener registration.
 
     Returns:
 
@@ -1126,7 +1139,8 @@ event or scope namespace and return its value.</p>
     # Don&#39;t keep namespace reference
     del namespace
 
-    on(event, listeners, result.set_result, once=True)
+    # FIXME: ignore on top is due to missing Literal[()] support
+    on(event, listeners, result.set_result, once=True, scope=scope)  # type: ignore[call-overload]
 
     try:
         return await result
@@ -1377,7 +1391,7 @@ def active(self) -&gt; bool:
 </nav>
 </main>
 <footer id="footer">
-<p>Generated by <a href="https://pdoc3.github.io/pdoc"><cite>pdoc</cite> 0.8.2</a>.</p>
+<p>Generated by <a href="https://pdoc3.github.io/pdoc"><cite>pdoc</cite> 0.8.4</a>.</p>
 </footer>
 </body>
 </html>
