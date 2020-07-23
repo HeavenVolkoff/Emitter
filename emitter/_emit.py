@@ -1,5 +1,13 @@
 # Standard
-from asyncio import Task, Future, CancelledError, AbstractEventLoop, ensure_future
+from asyncio import (
+    Task,
+    Future,
+    CancelledError,
+    AbstractEventLoop,
+    ensure_future,
+    iscoroutinefunction,
+)
+from warnings import warn
 from functools import partial
 from contextvars import Context
 import typing as T
@@ -149,6 +157,42 @@ async def _exec_listeners(
     return handled
 
 
+def _exec_listeners_sync(
+    listeners: T.Sequence[T.Tuple[ListenerCb[K], T.Tuple[ListenerOpts, Context]]],
+    event_instance: K,
+) -> bool:
+    handled = False
+    for listener, (opts, context) in listeners:
+        result = None
+        try:
+            result = context.run(listener, event_instance)
+        except Exception as exc:
+            # Second tier exception aren't treatable to avoid recursion
+            if not isinstance(event_instance, Exception):
+                try:
+                    # Emit an event to attempt treating the exception
+                    emit(exc, sync=True, namespace=listener)
+                except Exception as inner_exc:
+                    if inner_exc is not exc:
+                        exc.__context__ = inner_exc
+                else:
+                    continue
+
+            if opts & ListenerOpts.RAISE:
+                raise exc
+            else:
+                warn(str(exc))
+        finally:
+            handled = handled or (result is not _NOT_EXEC_ONCE_SENTINEL)
+
+    if not handled and isinstance(event_instance, Exception):
+        # When event_instance is an exception, and it is not handled, raise it back to user
+        # context
+        raise event_instance
+
+    return handled
+
+
 def _wrap_clear_once(
     listeners: T.MutableMapping[ListenerCb[K], T.Tuple[ListenerOpts, Context]],
     listener: ListenerCb[K],
@@ -182,8 +226,8 @@ def _wrap_clear_once(
     return _clear_once
 
 
-def _handle_once(
-    listeners: T.MutableMapping[ListenerCb[K], T.Tuple[ListenerOpts, Context]]
+def _handle_opts(
+    listeners: T.MutableMapping[ListenerCb[K], T.Tuple[ListenerOpts, Context]], sync: bool
 ) -> T.Iterator[T.Tuple[ListenerCb[K], T.Tuple[ListenerOpts, Context]]]:
     return (
         (
@@ -191,11 +235,12 @@ def _handle_once(
             (opts, ctx_idx),
         )
         for listener, (opts, ctx_idx) in listeners.items()
+        if not (sync and hasattr(listener, "__loop__") or iscoroutinefunction(listener))
     )
 
 
 def _retrieve_listeners(
-    listeners: Listeners, event_instance: T.Optional[K], scope: T.Tuple[str, ...]
+    listeners: Listeners, event_instance: T.Optional[K], scope: T.Tuple[str, ...], sync: bool
 ) -> T.Sequence[T.Tuple[ListenerCb[K], T.Tuple[ListenerOpts, Context]]]:
     event_type = type(event_instance)
 
@@ -221,12 +266,12 @@ def _retrieve_listeners(
     for step in range(len(scope), -1, -1):
         types = listeners.scope[scope[:step]]
         if event_type in types:
-            callables += _handle_once(types[event_type])
+            callables += _handle_opts(types[event_type], sync)
 
         for event_supertype in event_mro:
             if event_supertype in types:
                 mro_listeners = types[event_supertype]
-                callables += _handle_once(mro_listeners)
+                callables += _handle_opts(mro_listeners, sync)
 
     return callables
 
@@ -236,6 +281,19 @@ def emit(
     event_instance: object,
     namespace: object,
     *,
+    sync: Te.Literal[True],
+    loop: Te.Literal[None] = None,
+    scope: T.Union[str, T.Tuple[str, ...]] = "",
+) -> bool:
+    ...
+
+
+@T.overload
+def emit(
+    event_instance: object,
+    namespace: object,
+    *,
+    sync: Te.Literal[False] = False,
     loop: AbstractEventLoop,
     scope: T.Union[str, T.Tuple[str, ...]] = "",
 ) -> T.Optional["Task[bool]"]:
@@ -247,6 +305,7 @@ def emit(
     event_instance: object,
     namespace: object,
     *,
+    sync: Te.Literal[False] = False,
     loop: Te.Literal[None] = None,
     scope: T.Union[str, T.Tuple[str, ...]] = "",
 ) -> T.Coroutine[None, None, bool]:
@@ -257,9 +316,10 @@ def emit(
     event_instance: object,
     namespace: object,
     *,
+    sync: bool = False,
     loop: T.Optional[AbstractEventLoop] = None,
     scope: T.Union[str, T.Tuple[str, ...]] = "",
-) -> T.Union[None, "Task[bool]", T.Coroutine[None, None, bool]]:
+) -> T.Union[None, bool, "Task[bool]", T.Coroutine[None, None, bool]]:
     """Emit an event, and execute its listeners.
 
     When called without a defined loop argument this function always returns a coroutine.
@@ -280,6 +340,8 @@ def emit(
         event_instance: Event instance to be emitted.
 
         namespace: Specify a listener namespace to emit this event.
+
+        sync: Whether to only run the synchronous listeners
 
         loop: Define a loop to execute the listeners.
 
@@ -302,8 +364,11 @@ def emit(
 
     """
     namespace_listeners = _retrieve_listeners(
-        retrieve_listeners_from_namespace(namespace), event_instance, parse_scope(scope)
+        retrieve_listeners_from_namespace(namespace), event_instance, parse_scope(scope), sync
     )
+
+    if sync:
+        return _exec_listeners_sync(namespace_listeners, event_instance)
 
     coro = _exec_listeners(namespace_listeners, event_instance)
 

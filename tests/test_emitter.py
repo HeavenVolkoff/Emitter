@@ -339,6 +339,47 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
 
         mock.assert_called_once_with(exc)
 
+    @asynctest.fail_on(unused_loop=False)
+    def test_emit_sync(self) -> None:
+        mock = Mock()
+
+        @emitter.on(Event, Global)
+        def listener(event: Event) -> None:
+            self.assertEqual("Wowow", event.data)
+            mock(event)
+
+        @emitter.on(Event, Global)
+        async def listener(event: Event) -> None:
+            await asyncio.sleep(0)
+            self.assertEqual("Wowow", event.data)
+            mock(event)
+
+        e = Event("Wowow")
+        self.assertTrue(emitter.emit(e, Global, sync=True))
+
+        mock.assert_called_once_with(e)
+
+    async def test_emit_sync_in_async(self) -> None:
+        mock = Mock()
+
+        @emitter.on(Event, Global)
+        def listener(event: Event) -> None:
+            self.assertEqual("Wowow", event.data)
+            mock(event)
+
+        @emitter.on(Event, Global)
+        async def listener(event: Event) -> None:
+            await asyncio.sleep(0)
+            self.assertEqual("Wowow", event.data)
+            mock(event)
+
+        e = Event("Wowow")
+        self.assertTrue(emitter.emit(e, Global, sync=True))
+
+        await asyncio.sleep(1)
+
+        mock.assert_called_once_with(e)
+
     async def test_emit_none(self) -> None:
         mock = Mock()
         emitter.on("test", Global, mock)

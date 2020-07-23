@@ -26,7 +26,7 @@ async def wait(
 
         namespace: Specify the namespace in which to wait for the event emission.
 
-        scope: TODO
+        scope: Specify a scope for specializing this listener registration.
 
     Returns:
 
@@ -42,13 +42,8 @@ async def wait(
     # Don't keep namespace reference
     del namespace
 
-    on(
-        event,  # type: ignore[arg-type]
-        listeners,
-        result.set_result,
-        once=True,
-        scope=scope  # FIXME: ignore on top is due to missing Literal[()] support
-    )
+    # FIXME: ignore on top is due to missing Literal[()] support
+    on(event, listeners, result.set_result, once=True, scope=scope)  # type: ignore[call-overload]
 
     try:
         return await result

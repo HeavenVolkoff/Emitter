@@ -107,9 +107,7 @@ def on(
               correct context. (Default: Current running loop for coroutines functions, None for
               any other callable)
 
-        scope: TODO
-
-        context: Return a context for management of this listener lifecycle.
+        scope: Specify a scope for specializing this listener registration.
 
         raise_on_exc: Whether an untreated exception raised by this listener will make an event
                       emission to fail.

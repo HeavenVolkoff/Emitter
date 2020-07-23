@@ -63,7 +63,7 @@ def remove(
 
         namespace: Define from which namespace to remove the listener
 
-        scope: TODO
+        scope: Specify scope for limiting the removal of listeners.
 
         listener: Define the listener to be removed.
 

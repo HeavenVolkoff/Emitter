@@ -1,7 +1,3 @@
-# Standard
-import typing as T
-
-
 class EmitterError(Exception):
     """Base exception for Emitter related errors."""
 
