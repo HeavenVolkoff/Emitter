@@ -6,9 +6,6 @@ from contextvars import Context
 import sys
 import typing as T
 
-# External
-import typing_extensions as Te
-
 if T.TYPE_CHECKING:
     # Standard
     from asyncio import AbstractEventLoop
@@ -37,7 +34,7 @@ class ListenerOpts(Flag):
     RAISE = auto()
 
 
-class ListenerCb(Te.Protocol[K]):
+class ListenerCb(T.Protocol[K]):
     def __call__(self, __event_data: K) -> T.Optional[T.Awaitable[None]]:
         ...
 
@@ -52,12 +49,12 @@ class Listeners:
     def __init__(
         self, _scope: T.Optional[_scope_t] = None, _context: T.Optional["context"] = None
     ) -> None:
-        self.scope: Te.Final[_scope_t] = _scope or defaultdict(lambda: defaultdict(BestDict))
-        self.context: Te.Final[T.Optional["context"]] = _context
+        self.scope: T.Final[_scope_t] = _scope or defaultdict(lambda: defaultdict(BestDict))
+        self.context: T.Final[T.Optional["context"]] = _context
 
 
-@Te.runtime_checkable
-class Listenable(Te.Protocol):
+@T.runtime_checkable
+class Listenable(T.Protocol):
     """A protocol that defines emitter namespaces."""
 
     __listeners__: Listeners
@@ -68,7 +65,7 @@ class BoundLoopListenerWrapper(T.Generic[K]):
 
     def __init__(self, loop: "AbstractEventLoop", listener: ListenerCb[K]):
         self.__loop__ = loop
-        self.listener: Te.Final[ListenerCb[K]] = listener
+        self.listener: T.Final[ListenerCb[K]] = listener
 
     def __call__(self, __event_data: K) -> T.Optional[T.Awaitable[None]]:
         return self.listener(__event_data)

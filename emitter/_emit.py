@@ -5,6 +5,7 @@ from asyncio import (
     CancelledError,
     AbstractEventLoop,
     ensure_future,
+    get_running_loop,
     iscoroutinefunction,
 )
 from warnings import warn
@@ -12,18 +13,10 @@ from functools import partial
 from contextvars import Context
 import typing as T
 
-# External
-import typing_extensions as Te
-
 # Project
 from .error import ListenerEventLoopError
 from ._types import Listeners, ListenerCb, ListenerOpts
-from ._helpers import (
-    parse_scope,
-    get_running_loop,
-    retrieve_loop_from_listener,
-    retrieve_listeners_from_namespace,
-)
+from ._helpers import parse_scope, retrieve_loop_from_listener, retrieve_listeners_from_namespace
 
 # Type generics
 K = T.TypeVar("K", contravariant=True)
@@ -281,8 +274,8 @@ def emit(
     event_instance: object,
     namespace: object,
     *,
-    sync: Te.Literal[True],
-    loop: Te.Literal[None] = None,
+    sync: T.Literal[True],
+    loop: T.Literal[None] = None,
     scope: T.Union[str, T.Tuple[str, ...]] = "",
 ) -> bool:
     ...
@@ -293,7 +286,7 @@ def emit(
     event_instance: object,
     namespace: object,
     *,
-    sync: Te.Literal[False] = False,
+    sync: T.Literal[False] = False,
     loop: AbstractEventLoop,
     scope: T.Union[str, T.Tuple[str, ...]] = "",
 ) -> T.Optional["Task[bool]"]:
@@ -305,8 +298,8 @@ def emit(
     event_instance: object,
     namespace: object,
     *,
-    sync: Te.Literal[False] = False,
-    loop: Te.Literal[None] = None,
+    sync: T.Literal[False] = False,
+    loop: T.Literal[None] = None,
     scope: T.Union[str, T.Tuple[str, ...]] = "",
 ) -> T.Coroutine[None, None, bool]:
     ...

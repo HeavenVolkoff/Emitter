@@ -60,15 +60,15 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
         mock = Mock()
 
         emitter.on(Event, Global, lambda _: mock(0))
-        emitter.on("scope", Global, lambda _: mock(1))
+        emitter.on(object, Global, lambda _: mock(1), scope="scope")
         emitter.on(Exception, Global, lambda _: mock(2), scope="scope")
-        emitter.on("scope.test", Global, lambda _: mock(3))
-        emitter.on("scope...test.", Global, lambda _: mock(4))
+        emitter.on(object, Global, lambda _: mock(3), scope="scope.test")
+        emitter.on(object, Global, lambda _: mock(4), scope="scope...test.")
         emitter.on(RuntimeError, Global, lambda _: mock(5), scope="scope.test.")
-        emitter.on("scope.test.deep", Global, lambda _: mock(6))
-        emitter.on("scope.test.deep.owo", Global, lambda _: mock(7))
+        emitter.on(object, Global, lambda _: mock(6), scope="scope.test.deep")
+        emitter.on(object, Global, lambda _: mock(7), scope="scope.test.deep.owo")
         emitter.on(ValueError, Global, lambda _: mock(8), scope="scope..test....deep..owo.")
-        emitter.on("scope..test....deep..owo.", Global, lambda _: mock(9))
+        emitter.on(object, Global, lambda _: mock(9), scope="scope..test....deep..owo.")
 
         e = Event("Wowow")
         self.assertTrue(await emitter.emit(e, Global))
@@ -132,22 +132,22 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
             assert exc is event
             order_mock("ConnectionError 2")
 
-        @emitter.on("error", Global, raise_on_exc=True)
+        @emitter.on(object, Global, scope="error", raise_on_exc=True)
         def scoped_error_1_listener(exc: Exception):
             assert exc is event
             order_mock("ConnectionError scope=error 1")
 
-        @emitter.on("error", Global, raise_on_exc=True)
+        @emitter.on(object, Global, scope="error", raise_on_exc=True)
         def scoped_error_2_listener(exc: Exception):
             assert exc is event
             order_mock("ConnectionError scope=error 2")
 
-        @emitter.on("error.connection", Global, raise_on_exc=True)
+        @emitter.on(object, Global, scope="error.connection", raise_on_exc=True)
         def scoped_error_connection_1_listener(exc: Exception):
             assert exc is event
             order_mock("ConnectionError scope=error.connection 1")
 
-        @emitter.on("error.connection", Global, raise_on_exc=True)
+        @emitter.on(object, Global, scope="error.connection", raise_on_exc=True)
         def scoped_error_connection_2_listener(exc: Exception):
             assert exc is event
             order_mock("ConnectionError scope=error.connection 2")
@@ -203,7 +203,7 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
             self.assertEqual("Wowow", event.data)
             mock(event)
 
-        @emitter.on("test", Global)
+        @emitter.on(object, Global, scope="test")
         def listener(event: Event) -> None:
             self.assertEqual("Wowow", event.data)
             mock(event)
@@ -382,7 +382,7 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
 
     async def test_emit_none(self) -> None:
         mock = Mock()
-        emitter.on("test", Global, mock)
+        emitter.on(object, Global, mock, scope="test")
 
         with self.assertRaisesRegex(
             ValueError, "Event type can only be None when accompanied of a scope"
@@ -450,9 +450,6 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
 
     async def test_invalid_types_object(self) -> None:
         mock = Mock()
-
-        with self.assertRaises(ValueError):
-            emitter.on(object, Global, mock)
 
         with self.assertRaises(ValueError):
             await emitter.emit(object(), Global)
@@ -652,7 +649,7 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
 
             @emitter.on(Event, Global)
             def main_listener(_: T.Any) -> None:
-                emitter.on("test", Global, mock)
+                emitter.on(object, Global, mock, scope="test")
 
             self.assertTrue(await emitter.emit(e, Global))
             self.assertTrue(await emitter.emit(None, Global, scope="test"))
@@ -662,7 +659,7 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
             @emitter.on(Event, Global)
             async def async_main_listener(_: T.Any) -> None:
                 await asyncio.sleep(0)
-                emitter.on("test", Global, mock2)
+                emitter.on(object, Global, mock2, scope="test")
 
             self.assertTrue(await emitter.emit(e, Global))
             self.assertTrue(await emitter.emit(None, Global, scope="test"))
@@ -684,7 +681,7 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
         with emitter.context() as ctx:
             listeners = ctx.wrap_listeners(Global)
 
-        emitter.on("test", listeners, mock)
+        emitter.on(object, listeners, mock, scope="test")
 
         self.assertTrue(await emitter.emit(None, Global, scope="test"))
         mock.assert_called_once_with(None)
@@ -694,12 +691,12 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
         mock.assert_called_once_with(None)
         mock.reset_mock()
 
-        self.assertTrue(emitter.remove("test", Global, mock, context=ctx))
+        self.assertTrue(emitter.remove(None, Global, mock, context=ctx, scope="test"))
         self.assertFalse(await emitter.emit(None, Global, scope="test"))
         self.assertFalse(await emitter.emit(None, listeners, scope="test"))
         mock.assert_not_called()
 
-        emitter.on("test", listeners, mock)
+        emitter.on(object, listeners, mock, scope="test")
 
         self.assertTrue(await emitter.emit(None, Global, scope="test"))
         mock.assert_called_once_with(None)
@@ -709,7 +706,7 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
         mock.assert_called_once_with(None)
         mock.reset_mock()
 
-        self.assertTrue(emitter.remove("test", listeners, mock))
+        self.assertTrue(emitter.remove(None, listeners, mock, scope="test"))
         self.assertFalse(await emitter.emit(None, Global, scope="test"))
         self.assertFalse(await emitter.emit(None, listeners, scope="test"))
         mock.assert_not_called()
@@ -718,46 +715,46 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
         mock = Mock()
 
         with emitter.context() as ctx0:
-            emitter.on("test", Global, lambda x: mock(1))
+            emitter.on(object, Global, lambda x: mock(1), scope="test")
 
-            @emitter.on("test", Global)
+            @emitter.on(object, Global, scope="test")
             async def async_main_listener0(_: T.Any) -> None:
                 await asyncio.sleep(0)
-                emitter.on("test", Global, lambda x: mock(2))
-                emitter.remove("test", Global, async_main_listener0)
+                emitter.on(object, Global, lambda x: mock(2), scope="test")
+                emitter.remove(None, Global, async_main_listener0, scope="test")
 
         with emitter.context() as ctx1:
-            emitter.on("test", Global, lambda x: mock(3))
+            emitter.on(object, Global, lambda x: mock(3), scope="test")
 
             with emitter.context() as ctx2:
-                emitter.on("test", Global, lambda x: mock(4))
+                emitter.on(object, Global, lambda x: mock(4), scope="test")
 
             with emitter.context():
 
-                @emitter.on("test", Global)
+                @emitter.on(object, Global, scope="test")
                 async def async_main_listener1(_: T.Any) -> None:
                     await asyncio.sleep(0)
-                    emitter.on("test", Global, lambda x: mock(5))
-                    emitter.remove("test", Global, async_main_listener1)
+                    emitter.on(object, Global, lambda x: mock(5), scope="test")
+                    emitter.remove(None, Global, async_main_listener1, scope="test")
 
                 with emitter.context():
-                    emitter.on("test", Global, lambda x: mock(6))
+                    emitter.on(object, Global, lambda x: mock(6), scope="test")
 
         with emitter.context() as ctx3:
             listener0 = ctx3.wrap_listeners(Global)
 
         with emitter.context():
-            emitter.on("test", listener0, lambda x: mock(7))
+            emitter.on(object, listener0, lambda x: mock(7), scope="test")
 
             with emitter.context() as ctx5:
                 listener1 = ctx5.wrap_listeners(Global)
 
-            @emitter.on("test", Global)
+            @emitter.on(object, Global, scope="test")
             async def setup_remove(_: T.Any) -> None:
                 await asyncio.sleep(0)
-                emitter.remove("test", Global)
+                emitter.remove(object, Global, scope="test")
 
-        emitter.on("test", listener1, lambda x: mock(8))
+        emitter.on(object, listener1, lambda x: mock(8), scope="test")
 
         self.assertTrue(await emitter.emit(None, Global, scope="test"))
         mock.assert_has_calls([call(1), call(3), call(4), call(6), call(7), call(8)])
@@ -784,9 +781,9 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
 
             with emitter.context() as context:
 
-                @emitter.on(scope, Global)
+                @emitter.on(object, Global, scope=scope)
                 def main_listener(_: T.Any) -> None:
-                    emitter.on(scope, Global, mock)
+                    emitter.on(object, Global, mock, scope=scope)
 
                 await emitter.emit(None, Global, scope=scope)
                 mock.assert_not_called()
@@ -796,10 +793,10 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
                 mock2.assert_not_called()
                 mock.reset_mock()
 
-                @emitter.on(scope, Global)
+                @emitter.on(object, Global, scope=scope)
                 async def async_main_listener(_: T.Any) -> None:
                     await asyncio.sleep(0)
-                    emitter.on(scope, Global, mock2)
+                    emitter.on(object, Global, mock2, scope=scope)
 
                 await asyncio.sleep(time)
 

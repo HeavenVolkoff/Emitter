@@ -1,60 +1,23 @@
 # Standard
-from asyncio import AbstractEventLoop
+from asyncio import AbstractEventLoop, get_running_loop
 from inspect import iscoroutinefunction
-from contextlib import suppress, contextmanager
+from contextlib import suppress, nullcontext, contextmanager
 from contextvars import copy_context
 import typing as T
 
-# External
-import typing_extensions as Te
-
 # Project
 from ._types import ListenerCb, ListenerOpts, BoundLoopListenerWrapper
-from ._helpers import parse_scope, get_running_loop, retrieve_listeners_from_namespace
+from ._helpers import parse_scope, retrieve_listeners_from_namespace
 
 # Type generics
 K = T.TypeVar("K")
 
-try:
-    from contextlib import nullcontext
-except ImportError:
-    # Required for Python < 3.7
-    @contextmanager  # type: ignore[no-redef]
-    def nullcontext(enter_result: T.Optional[K] = None) -> T.Generator[T.Optional[K], None, None]:
-        yield enter_result
-
 
 @T.overload
 def on(
-    event: str,
+    event_type: T.Union[T.Type[K], T.Type[object]],
     namespace: object,
-    listener: Te.Literal[None] = None,
-    *,
-    once: bool = False,
-    loop: T.Optional[AbstractEventLoop] = None,
-    raise_on_exc: bool = False,
-) -> T.Callable[[ListenerCb[K]], ListenerCb[K]]:
-    ...
-
-
-@T.overload
-def on(
-    event: str,
-    namespace: object,
-    listener: ListenerCb[K],
-    *,
-    once: bool = False,
-    loop: T.Optional[AbstractEventLoop] = None,
-    raise_on_exc: bool = False,
-) -> ListenerCb[K]:
-    ...
-
-
-@T.overload
-def on(
-    event: T.Type[K],
-    namespace: object,
-    listener: Te.Literal[None] = None,
+    listener: T.Literal[None] = None,
     *,
     once: bool = False,
     loop: T.Optional[AbstractEventLoop] = None,
@@ -66,7 +29,7 @@ def on(
 
 @T.overload
 def on(
-    event: T.Type[K],
+    event_type: T.Union[T.Type[K], T.Type[object]],
     namespace: object,
     listener: ListenerCb[K],
     *,
@@ -79,7 +42,7 @@ def on(
 
 
 def on(
-    event: T.Union[str, T.Type[K]],
+    event_type: T.Union[T.Type[K], T.Type[object]],
     namespace: object,
     listener: T.Optional[ListenerCb[K]] = None,
     *,
@@ -95,7 +58,7 @@ def on(
 
     Args:
 
-        event: Specify which event type or scope namespace will trigger this listener execution.
+        event_type: Specify which event type or scope namespace will trigger this listener execution.
 
         namespace: Specify the namespace in which the listener will be attached.
 
@@ -126,26 +89,22 @@ def on(
         undecorated forms this function returns the given event listener.
 
     """
+
     if listener is None:
         return lambda cb: on(
-            event,  # type: ignore[arg-type]
+            event_type,
             namespace,
             cb,
             once=once,
             loop=loop,
-            scope=scope,  # FIXME: ignore on top is due to missing Literal[()] support
+            scope=scope,
             raise_on_exc=raise_on_exc,
         )
 
-    if isinstance(event, str):
-        assert scope == ""
-        scope = parse_scope(event)
-        event = T.cast(T.Type[K], object)
-    else:
-        scope = parse_scope(scope)
-
     if not callable(listener):
         raise ValueError("Listener must be callable")
+
+    scope = parse_scope(scope)
 
     # Define listeners options
     opts = ListenerOpts.NOP
@@ -174,24 +133,22 @@ def on(
         listener_info = (opts, copy_context())
 
     # Add the given listener to the correct queue
-    if event is None:
+    if event_type is None:
         raise ValueError("Event type can't be NoneType")
-    elif issubclass(event, type):
+    elif issubclass(event_type, type):
         # Event type must be a class. Reject Metaclass and cia.
         raise ValueError("Event type must be an concrete type")
-    elif event is object and not scope:
-        raise ValueError("Event type can't be object without a scope, too generic")
-    elif issubclass(event, BaseException) and not issubclass(event, Exception):
+    elif issubclass(event_type, BaseException) and not issubclass(event_type, Exception):
         raise ValueError("Event type can't be a BaseException")
     else:
-        listeners.scope[scope][event][listener] = listener_info
+        listeners.scope[scope][event_type][listener] = listener_info
 
     return listener
 
 
 @contextmanager
 def on_context(
-    event: T.Union[str, T.Type[K]],
+    event_type: T.Union[T.Type[K], T.Type[object]],
     namespace: object,
     listener: ListenerCb[K],
     *,
@@ -202,16 +159,16 @@ def on_context(
     from . import remove
 
     on(
-        event,  # type: ignore[arg-type]
+        event_type,
         namespace,
         listener,
         once=False,
         loop=loop,
-        scope=scope,  # FIXME: ignore on top is due to missing Literal[()] support
+        scope=scope,
         raise_on_exc=raise_on_exc,
     )
 
     try:
         yield
     finally:
-        remove(event, namespace, listener)
+        remove(event_type, namespace, listener)

@@ -9,31 +9,8 @@ from ._helpers import parse_scope, retrieve_listeners_from_namespace
 K = T.TypeVar("K")
 
 
-@T.overload
 def remove(
-    event: str,
-    namespace: object,
-    listener: T.Optional[ListenerCb[K]] = None,
-    *,
-    context: T.Optional[emitter_context] = None,
-) -> bool:
-    ...
-
-
-@T.overload
-def remove(
-    event: T.Optional[T.Type[K]],
-    namespace: object,
-    listener: T.Optional[ListenerCb[K]] = None,
-    *,
-    scope: T.Union[str, T.Tuple[str, ...]] = "",
-    context: T.Optional[emitter_context] = None,
-) -> bool:
-    ...
-
-
-def remove(
-    event: T.Union[str, None, T.Type[K]],
+    event_type: T.Union[None, T.Type[K], T.Type[object]],
     namespace: object,
     listener: T.Optional[ListenerCb[K]] = None,
     *,
@@ -59,7 +36,7 @@ def remove(
 
     Args:
 
-        event: Define from which event types the listeners will be removed.
+        event_type: Define from which event types the listeners will be removed.
 
         namespace: Define from which namespace to remove the listener
 
@@ -74,24 +51,19 @@ def remove(
         Boolean indicating whether any listener removal occurred.
 
     """
-    if isinstance(event, str):
-        assert scope == ""
-        scope = parse_scope(event)
-        event = None
-    else:
-        scope = parse_scope(scope)
+    scope = parse_scope(scope)
 
     if context is None:
         context = CONTEXT.get()
 
     scopes = tuple(retrieve_listeners_from_namespace(namespace).scope.items())
     removed = False
-    if not (listener is None or event is None):
+    if not (listener is None or event_type is None):
         for type_scope, types in scopes:
-            if type_scope < scope or event not in types:
+            if type_scope < scope or event_type not in types:
                 continue
 
-            listeners = types[event]
+            listeners = types[event_type]
             if listener not in listeners:
                 continue
 
@@ -104,12 +76,12 @@ def remove(
 
         return removed
 
-    if listener is None and event is not None:
+    if listener is None and event_type is not None:
         for type_scope, types in scopes:
-            if type_scope < scope or event not in types:
+            if type_scope < scope or event_type not in types:
                 continue
 
-            listeners = types[event]
+            listeners = types[event_type]
             for (listener, (_, ctx)) in tuple(listeners.items()):
                 if ctx[CONTEXT] not in context:
                     continue
@@ -119,12 +91,12 @@ def remove(
 
         return removed
 
-    if event is None and listener is not None:
+    if event_type is None and listener is not None:
         for type_scope, types in scopes:
             if type_scope < scope:
                 continue
 
-            for event, listeners in tuple(types.items()):
+            for event_type, listeners in tuple(types.items()):
                 if listener not in listeners:
                     continue
 
@@ -141,8 +113,8 @@ def remove(
         if type_scope < scope:
             continue
 
-        for event, listeners in tuple(types.items()):
-            listeners = types[event]
+        for event_type, listeners in tuple(types.items()):
+            listeners = types[event_type]
             for (listener, (_, ctx)) in tuple(listeners.items()):
                 if ctx[CONTEXT] not in context:
                     continue

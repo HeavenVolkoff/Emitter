@@ -1,18 +1,18 @@
 # Standard
-from asyncio import Future
+from asyncio import Future, get_running_loop
 import typing as T
 
 # Project
 from ._on import on
 from ._remove import remove
-from ._helpers import get_running_loop, retrieve_listeners_from_namespace
+from ._helpers import retrieve_listeners_from_namespace
 
 # Type generics
 K = T.TypeVar("K")
 
 
 async def wait(
-    event: T.Union[str, T.Type[K]],
+    event: T.Union[T.Type[K], T.Type[object]],
     namespace: object,
     *,
     scope: T.Union[str, T.Tuple[str, ...]] = "",
@@ -42,8 +42,7 @@ async def wait(
     # Don't keep namespace reference
     del namespace
 
-    # FIXME: ignore on top is due to missing Literal[()] support
-    on(event, listeners, result.set_result, once=True, scope=scope)  # type: ignore[call-overload]
+    on(event, listeners, result.set_result, once=True, scope=scope)
 
     try:
         return await result

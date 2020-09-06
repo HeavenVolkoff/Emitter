@@ -278,11 +278,9 @@ emitter.emit(
 ```
 """
 
-# Must be first so as to load the aiocontextvars polyfill lib
-from ._helpers import contextvars  # isort:skip
 
-# External
-from importlib_metadata import version  # type: ignore[import]
+# Standard
+from importlib.metadata import version
 
 # Project
 from ._on import on, on_context

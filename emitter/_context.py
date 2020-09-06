@@ -2,14 +2,11 @@
 from contextvars import Token, ContextVar
 import typing as T
 
-# External
-import typing_extensions as Te
-
 # Project
 from ._types import Listeners
 from ._helpers import retrieve_listeners_from_namespace
 
-CONTEXT: Te.Final["ContextVar[context]"] = ContextVar("emitter.context")
+CONTEXT: T.Final["ContextVar[context]"] = ContextVar("emitter.context")
 
 
 class context(T.ContextManager["context"]):
@@ -26,7 +23,7 @@ class context(T.ContextManager["context"]):
         self._ids: T.Final[T.Set[int]] = {id(self)}
         self._token: T.Optional[Token[context]] = None
 
-    def __exit__(self, _: T.Any, __: T.Any, ___: T.Any) -> Te.Literal[False]:
+    def __exit__(self, _: T.Any, __: T.Any, ___: T.Any) -> T.Literal[False]:
         if self._token is None:
             raise RuntimeError("Exiting an inactive emitter.context is not possible")
 
