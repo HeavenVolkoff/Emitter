@@ -60,6 +60,15 @@ class Listenable(T.Protocol):
     __listeners__: Listeners
 
 
+class NewListener:
+    """TODO"""
+
+    __slots__ = "type"
+
+    def __init__(self, instance: type):
+        self.type = instance
+
+
 class BoundLoopListenerWrapper(T.Generic[K]):
     __slots__ = ("__loop__", "listener")
 

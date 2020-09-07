@@ -165,6 +165,11 @@ async def write_user(event: UserRegisteredEvent) -> None:
 
 ### Special events:
 
+- `emitter.NewListener`:
+
+    Event emitted when a new listener has been added.
+    TODO: Explain use, object exception, NewListener recursion and sync only listeners
+
 - `emitter.error.EmitterError`:
 
     A generic internal event fired whenever an error occurs while emitting an event. It is an
@@ -286,7 +291,7 @@ from importlib.metadata import version
 from ._on import on, on_context
 from ._emit import emit
 from ._wait import wait
-from ._types import Listeners, Listenable
+from ._types import Listeners, Listenable, NewListener
 from ._remove import remove
 from ._context import context
 
@@ -308,5 +313,6 @@ __all__ = (
     "Listeners",
     "Listenable",
     "on_context",
+    "NewListener",
     "__version__",
 )

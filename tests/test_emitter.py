@@ -48,8 +48,13 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
 
     async def test_listener_simple(self) -> None:
         listener = Mock()
+        has_listener = Mock()
+
+        emitter.on(emitter.NewListener, Global, has_listener)
 
         emitter.on(Event, Global, listener)
+
+        has_listener.assert_called_once()
 
         e = Event("Wowow")
         self.assertTrue(await emitter.emit(e, Global))
@@ -58,7 +63,11 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
 
     async def test_listener_scope(self) -> None:
         mock = Mock()
+        new_listener = Mock()
 
+        emitter.on(
+            emitter.NewListener, Global, lambda nl: new_listener(nl.type), scope="scope.test"
+        )
         emitter.on(Event, Global, lambda _: mock(0))
         emitter.on(object, Global, lambda _: mock(1), scope="scope")
         emitter.on(Exception, Global, lambda _: mock(2), scope="scope")
@@ -69,6 +78,19 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
         emitter.on(object, Global, lambda _: mock(7), scope="scope.test.deep.owo")
         emitter.on(ValueError, Global, lambda _: mock(8), scope="scope..test....deep..owo.")
         emitter.on(object, Global, lambda _: mock(9), scope="scope..test....deep..owo.")
+
+        new_listener.assert_has_calls(
+            [
+                call(object),
+                call(object),
+                call(RuntimeError),
+                call(object),
+                call(object),
+                call(ValueError),
+                call(object),
+            ]
+        )
+        new_listener.reset_mock()
 
         e = Event("Wowow")
         self.assertTrue(await emitter.emit(e, Global))
@@ -97,6 +119,7 @@ class EmitterTestCase(asynctest.TestCase, unittest.TestCase):
             [call(8), call(7), call(9), call(6), call(3), call(4), call(2), call(1)]
         )
         mock.reset_mock()
+        new_listener.assert_not_called()
 
     async def test_listener_order(self) -> None:
         event = ConnectionError("Test")

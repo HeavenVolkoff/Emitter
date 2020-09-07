@@ -6,7 +6,8 @@ from contextvars import copy_context
 import typing as T
 
 # Project
-from ._types import ListenerCb, ListenerOpts, BoundLoopListenerWrapper
+from ._emit import emit
+from ._types import ListenerCb, NewListener, ListenerOpts, BoundLoopListenerWrapper
 from ._helpers import parse_scope, retrieve_listeners_from_namespace
 
 # Type generics
@@ -142,6 +143,9 @@ def on(
         raise ValueError("Event type can't be a BaseException")
     else:
         listeners.scope[scope][event_type][listener] = listener_info
+
+    if event_type is not NewListener:
+        emit(NewListener(event_type), namespace, sync=True, scope=scope)
 
     return listener
 

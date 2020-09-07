@@ -15,7 +15,7 @@ import typing as T
 
 # Project
 from .error import ListenerEventLoopError
-from ._types import Listeners, ListenerCb, ListenerOpts
+from ._types import Listeners, ListenerCb, NewListener, ListenerOpts
 from ._helpers import parse_scope, retrieve_loop_from_listener, retrieve_listeners_from_namespace
 
 # Type generics
@@ -254,7 +254,8 @@ def _retrieve_listeners(
     if event_instance is None and not scope:
         raise ValueError("Event type can only be None when accompanied of a scope")
 
-    event_mro = tuple(cls for cls in event_type.mro()[1:] if cls is not BaseException)
+    ignored_mro = (object, BaseException) if event_type is NewListener else (BaseException,)
+    event_mro = tuple(cls for cls in event_type.mro()[1:] if cls not in ignored_mro)
     callables: T.List[T.Tuple[ListenerCb[K], T.Tuple[ListenerOpts, Context]]] = []
     for step in range(len(scope), -1, -1):
         types = listeners.scope[scope[:step]]
