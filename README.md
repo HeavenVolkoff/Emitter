@@ -1,4 +1,4 @@
-# Emitter
+# Emitter (DEPRECATED)
 
 Async-aware event emitter for Python
 
@@ -12,4 +12,4 @@ See [LICENSE](./LICENSE)
 
 ## COPYRIGHT
 
-    Copyright (c) 2020 Vítor Augusto da Silva Vasconcellos. All rights reserved.
+    Copyright (c) 2020-2023 Vítor Vasconcellos. All rights reserved.
